@@ -48,12 +48,13 @@
 #![no_std]
 #![deny(missing_docs)]
 
-#[cfg(feature="use-serde")]
-#[macro_use] extern crate serde_derive;
-#[cfg(feature="use-serde")]
+#[cfg(feature = "use-serde")]
+#[macro_use]
+extern crate serde_derive;
+extern crate bitvec;
+#[cfg(feature = "use-serde")]
 extern crate serde;
 extern crate yaxpeax_arch;
-extern crate bitvec;
 
 /// `yaxpeax-arm`'s `ARMv7` decoder and `Arch` implementation.
 pub mod armv7;

@@ -1,5 +1,7 @@
 use yaxpeax_arch::{Arch, Decoder, LengthedInstruction};
-use yaxpeax_arm::armv7::{ARMv7, Instruction, ConditionCode, DecodeError, Operand, Opcode, Reg, RegShift};
+use yaxpeax_arm::armv7::{
+    ARMv7, ConditionCode, DecodeError, Instruction, Opcode, Operand, Reg, RegShift,
+};
 
 mod thumb;
 
@@ -8,12 +10,11 @@ type InstDecoder = <ARMv7 as Arch>::Decoder;
 fn test_invalid_under(decoder: &InstDecoder, data: [u8; 4]) {
     let mut reader = yaxpeax_arch::U8Reader::new(&data[..]);
     match decoder.decode(&mut reader) {
-        Err(_) => { },
+        Err(_) => {}
         Ok(inst) => {
             panic!(
                 "unexpected successful decode for {:02x}{:02x}{:02x}{:02x}\ngot: {}",
-                data[0], data[1], data[2], data[3],
-                inst
+                data[0], data[1], data[2], data[3], inst
             );
         }
     }
@@ -23,16 +24,23 @@ fn test_display_under(decoder: &InstDecoder, data: [u8; 4], expected: &'static s
     let mut reader = yaxpeax_arch::U8Reader::new(&data[..]);
     let instr = match decoder.decode(&mut reader) {
         Err(e) => {
-            panic!("failed to decode {:02x}{:02x}{:02x}{:02x}: {}", data[0], data[1], data[2], data[3], e)
-        },
+            panic!(
+                "failed to decode {:02x}{:02x}{:02x}{:02x}: {}",
+                data[0], data[1], data[2], data[3], e
+            )
+        }
         Ok(instr) => instr,
     };
     let displayed = format!("{}", instr);
     assert!(
         displayed == expected,
         "decode error for {:02x}{:02x}{:02x}{:02x}:\n displayed: {}\n expected:  {}\n",
-        data[0], data[1], data[2], data[3],
-        displayed, expected
+        data[0],
+        data[1],
+        data[2],
+        data[3],
+        displayed,
+        expected
     );
 }
 
@@ -42,45 +50,49 @@ fn test_decode(data: [u8; 4], expected: Instruction) {
     assert!(
         instr == expected,
         "decode error for {:02x}{:02x}{:02x}{:02x}:\n  decoded: {:?}\n expected: {:?}\n",
-        data[0], data[1], data[2], data[3],
-        instr, expected
+        data[0],
+        data[1],
+        data[2],
+        data[3],
+        instr,
+        expected
     );
 }
 
 fn test_invalid(data: [u8; 4]) {
-   test_invalid_under(&InstDecoder::default(), data);
+    test_invalid_under(&InstDecoder::default(), data);
 }
 
 fn test_all(data: [u8; 4], expected: &'static str) {
-   test_display_under(&InstDecoder::armv4(), data, expected);
-   test_display_under(&InstDecoder::armv5(), data, expected);
-   test_display_under(&InstDecoder::armv6(), data, expected);
-   test_display_under(&InstDecoder::armv7(), data, expected);
+    test_display_under(&InstDecoder::armv4(), data, expected);
+    test_display_under(&InstDecoder::armv5(), data, expected);
+    test_display_under(&InstDecoder::armv6(), data, expected);
+    test_display_under(&InstDecoder::armv7(), data, expected);
 }
 fn test_armv5(data: [u8; 4], expected: &'static str) {
-   test_display_under(&InstDecoder::armv5(), data, expected);
-//   test_invalid_under(&InstDecoder::armv4(), data);
+    test_display_under(&InstDecoder::armv5(), data, expected);
+    //   test_invalid_under(&InstDecoder::armv4(), data);
 }
 fn test_armv6(data: [u8; 4], expected: &'static str) {
-   test_display_under(&InstDecoder::armv6(), data, expected);
-//   test_invalid_under(&InstDecoder::armv5(), data);
+    test_display_under(&InstDecoder::armv6(), data, expected);
+    //   test_invalid_under(&InstDecoder::armv5(), data);
 }
 fn test_armv6t2(data: [u8; 4], expected: &'static str) {
-   test_display_under(&InstDecoder::armv6t2(), data, expected);
-//   test_invalid_under(&InstDecoder::armv6(), data);
+    test_display_under(&InstDecoder::armv6t2(), data, expected);
+    //   test_invalid_under(&InstDecoder::armv6(), data);
 }
 #[allow(dead_code)]
 fn test_armv7(data: [u8; 4], expected: &'static str) {
-   test_display_under(&InstDecoder::armv7(), data, expected);
-//   test_invalid_under(&InstDecoder::armv6(), data);
+    test_display_under(&InstDecoder::armv7(), data, expected);
+    //   test_invalid_under(&InstDecoder::armv6(), data);
 }
 fn test_armv7ve(data: [u8; 4], expected: &'static str) {
-   test_display_under(&InstDecoder::armv7ve(), data, expected);
-//   test_invalid_under(&InstDecoder::armv7(), data, expected);
+    test_display_under(&InstDecoder::armv7ve(), data, expected);
+    //   test_invalid_under(&InstDecoder::armv7(), data, expected);
 }
 fn test_arm_security_extensions(data: [u8; 4], expected: &'static str) {
-   test_display_under(&InstDecoder::armv7vese(), data, expected);
-//   test_invalid_under(&InstDecoder::armv7ve(), data, expected);
+    test_display_under(&InstDecoder::armv7vese(), data, expected);
+    //   test_invalid_under(&InstDecoder::armv7ve(), data, expected);
 }
 
 fn test_nonconformant(data: [u8; 4]) {
@@ -88,7 +100,9 @@ fn test_nonconformant(data: [u8; 4]) {
     let result = InstDecoder::default().decode(&mut reader);
     assert!(
         result == Err(DecodeError::Nonconforming),
-        "got bad result: {:?} from {:#x?}", result, data
+        "got bad result: {:?} from {:#x?}",
+        result,
+        data
     );
 }
 
@@ -127,7 +141,7 @@ fn test_decode_str_ldr() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x10, 0x00, 0x9f, 0xe5],
@@ -144,7 +158,7 @@ fn test_decode_str_ldr() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x04, 0x20, 0x2d, 0xe5],
@@ -161,7 +175,7 @@ fn test_decode_str_ldr() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x04, 0x00, 0x2d, 0xe5],
@@ -178,7 +192,7 @@ fn test_decode_str_ldr() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x14, 0x30, 0x9f, 0xe5],
@@ -195,7 +209,7 @@ fn test_decode_str_ldr() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x14, 0x20, 0x9f, 0xe5],
@@ -212,7 +226,7 @@ fn test_decode_str_ldr() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_all([0x10, 0x00, 0x7f, 0xe5], "ldrb r0, [pc, -0x10]!");
     test_all([0x10, 0x00, 0x3f, 0xe5], "ldr r0, [pc, -0x10]!");
@@ -237,63 +251,29 @@ fn test_decode_str_ldr() {
     test_all([0xfb, 0x48, 0xe6, 0xe1], "strd r4, r5, [r6, 0x8b]!");
     test_all([0xfb, 0x38, 0xf5, 0xe1], "ldrsh r3, [r5, 0x8b]!");
     test_all([0xfb, 0x38, 0xff, 0xe1], "ldrsh r3, [pc, 0x8b]!");
-
 }
 
 #[test]
 fn test_synchronization() {
-    test_display(
-        [0x94, 0x8f, 0x8a, 0xe1],
-        "strex r8, r4, [r10]"
-    );
-    test_display(
-        [0x9f, 0x8f, 0x9a, 0xe1],
-        "ldrex r8, [r10]"
-    );
-    test_display(
-        [0x94, 0x2f, 0xa4, 0xe1],
-        "strexd r2, r4, r5, [r4]"
-    );
-    test_display(
-        [0x9f, 0x2f, 0xb4, 0xe1],
-        "ldrexd r2, r3, [r4]"
-    );
-    test_display(
-        [0x9f, 0x2f, 0xc4, 0xe1],
-        "strexb r2, pc, [r4]"
-    );
-    test_display(
-        [0x9f, 0x2f, 0xd4, 0xe1],
-        "ldrexb r2, [r4]"
-    );
-    test_display(
-        [0x9f, 0x2f, 0xe4, 0xe1],
-        "strexh r2, pc, [r4]"
-    );
-    test_display(
-        [0x9f, 0x2f, 0xf4, 0xe1],
-        "ldrexh r2, [r4]"
-    );
+    test_display([0x94, 0x8f, 0x8a, 0xe1], "strex r8, r4, [r10]");
+    test_display([0x9f, 0x8f, 0x9a, 0xe1], "ldrex r8, [r10]");
+    test_display([0x94, 0x2f, 0xa4, 0xe1], "strexd r2, r4, r5, [r4]");
+    test_display([0x9f, 0x2f, 0xb4, 0xe1], "ldrexd r2, r3, [r4]");
+    test_display([0x9f, 0x2f, 0xc4, 0xe1], "strexb r2, pc, [r4]");
+    test_display([0x9f, 0x2f, 0xd4, 0xe1], "ldrexb r2, [r4]");
+    test_display([0x9f, 0x2f, 0xe4, 0xe1], "strexh r2, pc, [r4]");
+    test_display([0x9f, 0x2f, 0xf4, 0xe1], "ldrexh r2, [r4]");
 }
 
 #[test]
 fn test_str() {
-    test_display(
-        [0xb5, 0x53, 0x68, 0xe0],
-        "strht r5, [r8], -0x35"
-    );
+    test_display([0xb5, 0x53, 0x68, 0xe0], "strht r5, [r8], -0x35");
 }
 
 #[test]
 fn test_data_imm() {
-    test_display(
-        [0x12, 0x34, 0xa0, 0xe3],
-        "mov r3, 0x12000000"
-    );
-    test_display(
-        [0x12, 0x44, 0x9c, 0xe3],
-        "orrs r4, ip, 0x12000000"
-    );
+    test_display([0x12, 0x34, 0xa0, 0xe3], "mov r3, 0x12000000");
+    test_display([0x12, 0x44, 0x9c, 0xe3], "orrs r4, ip, 0x12000000");
 }
 
 #[test]
@@ -302,26 +282,11 @@ fn test_decode_misc() {
     test_display([0xfd, 0xff, 0xff, 0xeb], "bl $-0x4");
     test_display([0x13, 0x8d, 0x04, 0xea], "b $+0x123454");
     test_armv5([0x32, 0xff, 0x2f, 0xe1], "blx r2");
-    test_display(
-        [0x13, 0x5f, 0x6f, 0xe1],
-        "clz r5, r3"
-    );
-    test_display(
-        [0xc8, 0xac, 0x0b, 0xe1],
-        "smlabt fp, r8, ip, r10"
-    );
-    test_display(
-        [0x32, 0xff, 0x2f, 0xe1],
-        "blx r2"
-    );
-    test_display(
-        [0x02, 0x00, 0xa0, 0xe3],
-        "mov r0, 0x2"
-    );
-    test_display(
-        [0xe8, 0x10, 0x9f, 0xe5],
-        "ldr r1, [pc, 0xe8]"
-    );
+    test_display([0x13, 0x5f, 0x6f, 0xe1], "clz r5, r3");
+    test_display([0xc8, 0xac, 0x0b, 0xe1], "smlabt fp, r8, ip, r10");
+    test_display([0x32, 0xff, 0x2f, 0xe1], "blx r2");
+    test_display([0x02, 0x00, 0xa0, 0xe3], "mov r0, 0x2");
+    test_display([0xe8, 0x10, 0x9f, 0xe5], "ldr r1, [pc, 0xe8]");
     // https://www.raspberrypi.org/forums/viewtopic.php?p=967759&sid=25fa58d95208c0c76b579012ca693380#p967759
     // it looks like gcc toolchains older than 6.1(?) don't support -march=armv7e
     test_armv7ve([0x6e, 0x00, 0x60, 0xe1], "eret");
@@ -382,12 +347,9 @@ fn test_decode_pop() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
-    test_display(
-        [0x04, 0x10, 0x9d, 0xe4],
-        "pop {r1}"
-    );
+    test_display([0x04, 0x10, 0x9d, 0xe4], "pop {r1}");
     test_decode(
         [0xf0, 0x40, 0x2d, 0xe9],
         Instruction {
@@ -403,12 +365,9 @@ fn test_decode_pop() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
-    test_display(
-        [0xf0, 0x40, 0x2d, 0xe9],
-        "push {r4, r5, r6, r7, lr}"
-    );
+    test_display([0xf0, 0x40, 0x2d, 0xe9], "push {r4, r5, r6, r7, lr}");
     test_decode(
         [0xf0, 0x80, 0xbd, 0x18],
         Instruction {
@@ -424,12 +383,9 @@ fn test_decode_pop() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
-    test_display(
-        [0xf0, 0x80, 0xbd, 0x18],
-        "popne {r4, r5, r6, r7, pc}"
-    );
+    test_display([0xf0, 0x80, 0xbd, 0x18], "popne {r4, r5, r6, r7, pc}");
 }
 
 #[test]
@@ -449,7 +405,7 @@ fn test_decode_mov() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_display([0x0d, 0x20, 0xa0, 0xe1], "mov r2, sp");
     test_nonconformant([0x0d, 0x20, 0xa1, 0xe1]);
@@ -468,7 +424,7 @@ fn test_decode_mov() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
 }
 
@@ -479,64 +435,86 @@ fn test_decode_arithmetic() {
         Instruction {
             condition: ConditionCode::EQ,
             opcode: Opcode::AND,
-            operands: [Operand::Reg(Reg::from_u8(1)), Operand::Reg(Reg::from_u8(0)), Operand::RegShift(RegShift::from_raw(0xd18)), Operand::Nothing],
+            operands: [
+                Operand::Reg(Reg::from_u8(1)),
+                Operand::Reg(Reg::from_u8(0)),
+                Operand::RegShift(RegShift::from_raw(0xd18)),
+                Operand::Nothing,
+            ],
             s: false,
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
-    test_display(
-        [0x18, 0x1d, 0x00, 0x00],
-        "andeq r1, r0, r8, lsl sp",
-    );
+    test_display([0x18, 0x1d, 0x00, 0x00], "andeq r1, r0, r8, lsl sp");
     test_decode(
         [0x03, 0x30, 0x8f, 0xe0],
         Instruction {
             condition: ConditionCode::AL,
             opcode: Opcode::ADD,
-            operands: [Operand::Reg(Reg::from_u8(3)), Operand::Reg(Reg::from_u8(15)), Operand::Reg(Reg::from_u8(3)), Operand::Nothing],
+            operands: [
+                Operand::Reg(Reg::from_u8(3)),
+                Operand::Reg(Reg::from_u8(15)),
+                Operand::Reg(Reg::from_u8(3)),
+                Operand::Nothing,
+            ],
             s: false,
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x03, 0x30, 0x66, 0xe0],
         Instruction {
             condition: ConditionCode::AL,
             opcode: Opcode::RSB,
-            operands: [Operand::Reg(Reg::from_u8(3)), Operand::Reg(Reg::from_u8(6)), Operand::Reg(Reg::from_u8(3)), Operand::Nothing],
+            operands: [
+                Operand::Reg(Reg::from_u8(3)),
+                Operand::Reg(Reg::from_u8(6)),
+                Operand::Reg(Reg::from_u8(3)),
+                Operand::Nothing,
+            ],
             s: false,
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x43, 0x31, 0xa0, 0xe1],
         Instruction {
             condition: ConditionCode::AL,
             opcode: Opcode::MOV,
-            operands: [Operand::Reg(Reg::from_u8(3)), Operand::Reg(Reg::from_u8(0)), Operand::RegShift(RegShift::from_raw(0x143)), Operand::Nothing],
+            operands: [
+                Operand::Reg(Reg::from_u8(3)),
+                Operand::Reg(Reg::from_u8(0)),
+                Operand::RegShift(RegShift::from_raw(0x143)),
+                Operand::Nothing,
+            ],
             s: false,
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x01, 0x50, 0x43, 0xe2],
         Instruction {
             condition: ConditionCode::AL,
             opcode: Opcode::SUB,
-            operands: [Operand::Reg(Reg::from_u8(5)), Operand::Reg(Reg::from_u8(3)), Operand::Imm32(1), Operand::Nothing],
+            operands: [
+                Operand::Reg(Reg::from_u8(5)),
+                Operand::Reg(Reg::from_u8(3)),
+                Operand::Imm32(1),
+                Operand::Nothing,
+            ],
             s: false,
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
 }
 
@@ -605,7 +583,7 @@ fn test_decode_mul() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x90, 0x79, 0x09, 0x00],
@@ -622,7 +600,7 @@ fn test_decode_mul() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
     test_decode(
         [0x94, 0x79, 0x09, 0x00],
@@ -639,73 +617,27 @@ fn test_decode_mul() {
             thumb_w: false,
             thumb: false,
             wide: false,
-        }
+        },
     );
 }
 
 static INSTRUCTION_BYTES: [u8; 4 * 60] = [
-        0x24, 0xc0, 0x9f, 0xe5,
-        0x00, 0xb0, 0xa0, 0xe3,
-        0x04, 0x10, 0x9d, 0xe4,
-        0x0d, 0x20, 0xa0, 0xe1,
-        0x04, 0x20, 0x2d, 0xe5,
-        0x04, 0x00, 0x2d, 0xe5,
-        0x10, 0x00, 0x9f, 0xe5,
-        0x10, 0x30, 0x9f, 0xe5,
-        0x04, 0xc0, 0x2d, 0xe5,
-        0x4b, 0xfe, 0xff, 0xeb,
-        0xd5, 0xfd, 0xff, 0xeb,
-        0x90, 0x79, 0x09, 0x00,
-        0x64, 0xd0, 0x01, 0x00,
-        0x94, 0x79, 0x09, 0x00,
-        0x14, 0x30, 0x9f, 0xe5,
-        0x14, 0x20, 0x9f, 0xe5,
-        0x03, 0x30, 0x8f, 0xe0,
-        0x02, 0x10, 0x93, 0xe7,
-        0x00, 0x00, 0x51, 0xe3,
-        0x0e, 0xf0, 0xa0, 0x01,
-        0x01, 0xfe, 0xff, 0xea,
-        0x58, 0x75, 0x09, 0x00,
-        0xec, 0x02, 0x00, 0x00,
-        0xf0, 0x40, 0x2d, 0xe9,
-        0x54, 0x70, 0x9f, 0xe5,
-        0x00, 0x30, 0xd7, 0xe5,
-        0x00, 0x00, 0x53, 0xe3,
-        0xf0, 0x80, 0xbd, 0x18,
-        0x48, 0x60, 0x9f, 0xe5,
-        0x48, 0x30, 0x9f, 0xe5,
-        0x48, 0x40, 0x9f, 0xe5,
-        0x03, 0x30, 0x66, 0xe0,
-        0x43, 0x31, 0xa0, 0xe1,
-        0x00, 0x20, 0x94, 0xe5,
-        0x01, 0x50, 0x43, 0xe2,
-        0x05, 0x00, 0x52, 0xe1,
-        0x06, 0x00, 0x00, 0x2a,
-        0x01, 0x30, 0x82, 0xe2,
-        0x00, 0x30, 0x84, 0xe5,
-        0x0f, 0xe0, 0xa0, 0xe1,
-        0x03, 0xf1, 0x96, 0xe7,
-        0x00, 0x20, 0x94, 0xe5,
-        0x05, 0x00, 0x52, 0xe1,
-        0xf8, 0xff, 0xff, 0x3a,
-        0x01, 0x30, 0xa0, 0xe3,
-        0x00, 0x30, 0xc7, 0xe5,
-        0xf0, 0x80, 0xbd, 0xe8,
-        0x9c, 0x7d, 0x0b, 0x00,
-        0xa0, 0x33, 0x0b, 0x00,
-        0xa4, 0x33, 0x0b, 0x00,
-        0xa0, 0x7d, 0x0b, 0x00,
-        0x04, 0xe0, 0x2d, 0xe5,
-        0x04, 0xf0, 0x9d, 0xe4,
-        0x24, 0x00, 0x9f, 0xe5,
-        0x00, 0x30, 0x90, 0xe5,
-        0x00, 0x00, 0x53, 0xe3,
-        0x04, 0xe0, 0x2d, 0xe5,
-        0x04, 0xf0, 0x9d, 0x04,
-        0x14, 0x30, 0x9f, 0xe5,
-        0x00, 0x00, 0x53, 0xe3
-    ];
-
+    0x24, 0xc0, 0x9f, 0xe5, 0x00, 0xb0, 0xa0, 0xe3, 0x04, 0x10, 0x9d, 0xe4, 0x0d, 0x20, 0xa0, 0xe1,
+    0x04, 0x20, 0x2d, 0xe5, 0x04, 0x00, 0x2d, 0xe5, 0x10, 0x00, 0x9f, 0xe5, 0x10, 0x30, 0x9f, 0xe5,
+    0x04, 0xc0, 0x2d, 0xe5, 0x4b, 0xfe, 0xff, 0xeb, 0xd5, 0xfd, 0xff, 0xeb, 0x90, 0x79, 0x09, 0x00,
+    0x64, 0xd0, 0x01, 0x00, 0x94, 0x79, 0x09, 0x00, 0x14, 0x30, 0x9f, 0xe5, 0x14, 0x20, 0x9f, 0xe5,
+    0x03, 0x30, 0x8f, 0xe0, 0x02, 0x10, 0x93, 0xe7, 0x00, 0x00, 0x51, 0xe3, 0x0e, 0xf0, 0xa0, 0x01,
+    0x01, 0xfe, 0xff, 0xea, 0x58, 0x75, 0x09, 0x00, 0xec, 0x02, 0x00, 0x00, 0xf0, 0x40, 0x2d, 0xe9,
+    0x54, 0x70, 0x9f, 0xe5, 0x00, 0x30, 0xd7, 0xe5, 0x00, 0x00, 0x53, 0xe3, 0xf0, 0x80, 0xbd, 0x18,
+    0x48, 0x60, 0x9f, 0xe5, 0x48, 0x30, 0x9f, 0xe5, 0x48, 0x40, 0x9f, 0xe5, 0x03, 0x30, 0x66, 0xe0,
+    0x43, 0x31, 0xa0, 0xe1, 0x00, 0x20, 0x94, 0xe5, 0x01, 0x50, 0x43, 0xe2, 0x05, 0x00, 0x52, 0xe1,
+    0x06, 0x00, 0x00, 0x2a, 0x01, 0x30, 0x82, 0xe2, 0x00, 0x30, 0x84, 0xe5, 0x0f, 0xe0, 0xa0, 0xe1,
+    0x03, 0xf1, 0x96, 0xe7, 0x00, 0x20, 0x94, 0xe5, 0x05, 0x00, 0x52, 0xe1, 0xf8, 0xff, 0xff, 0x3a,
+    0x01, 0x30, 0xa0, 0xe3, 0x00, 0x30, 0xc7, 0xe5, 0xf0, 0x80, 0xbd, 0xe8, 0x9c, 0x7d, 0x0b, 0x00,
+    0xa0, 0x33, 0x0b, 0x00, 0xa4, 0x33, 0x0b, 0x00, 0xa0, 0x7d, 0x0b, 0x00, 0x04, 0xe0, 0x2d, 0xe5,
+    0x04, 0xf0, 0x9d, 0xe4, 0x24, 0x00, 0x9f, 0xe5, 0x00, 0x30, 0x90, 0xe5, 0x00, 0x00, 0x53, 0xe3,
+    0x04, 0xe0, 0x2d, 0xe5, 0x04, 0xf0, 0x9d, 0x04, 0x14, 0x30, 0x9f, 0xe5, 0x00, 0x00, 0x53, 0xe3,
+];
 
 #[test]
 fn test_decode_span() {
@@ -719,11 +651,12 @@ fn test_decode_span() {
             INSTRUCTION_BYTES[i as usize + 1],
             INSTRUCTION_BYTES[i as usize + 2],
             INSTRUCTION_BYTES[i as usize + 3],
-//            instr,
-            instr);
+            //            instr,
+            instr
+        );
         i += instr.len();
     }
-//    panic!("done");
+    //    panic!("done");
 }
 /*
  * from debian 5.0.10 bash 3.2-4_arm

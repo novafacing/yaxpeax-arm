@@ -5,19 +5,32 @@
 use yaxpeax_arch::{Arch, Decoder};
 
 use std::fmt::Write;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::num::ParseIntError;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 #[derive(Debug)]
 enum ParsedOperand {
-    Register { size: char, num: u8 },
+    Register {
+        size: char,
+        num: u8,
+    },
     Memory(String),
-    MemoryWithOffset { base: String, offset: Option<i64>, writeback: bool },
-    SIMDRegister { size: char, num: u8 },
-//    SIMDRegisterElements { num: u8, elems: u8, elem_size: char },
-//    SIMDRegisterElement { num: u8, elem_size: char, elem: u8 },
-    SIMDElementLane { elem: String, lane_selector: u8 },
+    MemoryWithOffset {
+        base: String,
+        offset: Option<i64>,
+        writeback: bool,
+    },
+    SIMDRegister {
+        size: char,
+        num: u8,
+    },
+    //    SIMDRegisterElements { num: u8, elems: u8, elem_size: char },
+    //    SIMDRegisterElement { num: u8, elem_size: char, elem: u8 },
+    SIMDElementLane {
+        elem: String,
+        lane_selector: u8,
+    },
     Immediate(i64),
     PCRel(i64),
     Float(f64),
@@ -30,109 +43,155 @@ impl PartialEq for ParsedOperand {
         use ParsedOperand::*;
 
         match (self, other) {
-            (Register { size: size_l, num: num_l }, Register { size: size_r, num: num_r }) => {
-                size_l == size_r && num_l == num_r
-            },
-            (Memory(l), Memory(r)) => {
-                l == r
-            },
             (
-                MemoryWithOffset { base: base_l, offset: offset_l, writeback: writeback_l },
-                MemoryWithOffset { base: base_r, offset: offset_r, writeback: writeback_r },
-            ) => {
-                base_l == base_r &&
-                offset_l == offset_r &&
-                writeback_l == writeback_r
-            },
-            (Immediate(l), Immediate(r)) => {
-                l == r
-            },
-            (PCRel(l), PCRel(r)) => {
-                l == r
-            },
+                Register {
+                    size: size_l,
+                    num: num_l,
+                },
+                Register {
+                    size: size_r,
+                    num: num_r,
+                },
+            ) => size_l == size_r && num_l == num_r,
+            (Memory(l), Memory(r)) => l == r,
+            (
+                MemoryWithOffset {
+                    base: base_l,
+                    offset: offset_l,
+                    writeback: writeback_l,
+                },
+                MemoryWithOffset {
+                    base: base_r,
+                    offset: offset_r,
+                    writeback: writeback_r,
+                },
+            ) => base_l == base_r && offset_l == offset_r && writeback_l == writeback_r,
+            (Immediate(l), Immediate(r)) => l == r,
+            (PCRel(l), PCRel(r)) => l == r,
             (Immediate(l), PCRel(r)) => {
                 // assume pc=0 as capstone does by default
-                *l == 0 + r
-            },
+                *l == *r
+            }
             (PCRel(l), Immediate(r)) => {
                 // assume pc=0 as capstone does by default
-                0 + l == *r
-            },
-            (Float(l), Float(r)) => {
-                l.to_ne_bytes() == r.to_ne_bytes()
-            },
-            (RegisterFamily(l), RegisterFamily(r)) => {
-                l == r
-            },
-            (SIMDRegister { size: size_l, num: num_l }, SIMDRegister { size: size_r, num: num_r }) => {
-                size_l == size_r && num_l == num_r
-            },
-            (SIMDElementLane { elem: elem_l, lane_selector: lane_l }, SIMDElementLane { elem: elem_r, lane_selector: lane_r }) => {
-                elem_l == elem_r && lane_l == lane_r
+                *l == *r
             }
+            (Float(l), Float(r)) => l.to_ne_bytes() == r.to_ne_bytes(),
+            (RegisterFamily(l), RegisterFamily(r)) => l == r,
+            (
+                SIMDRegister {
+                    size: size_l,
+                    num: num_l,
+                },
+                SIMDRegister {
+                    size: size_r,
+                    num: num_r,
+                },
+            ) => size_l == size_r && num_l == num_r,
+            (
+                SIMDElementLane {
+                    elem: elem_l,
+                    lane_selector: lane_l,
+                },
+                SIMDElementLane {
+                    elem: elem_r,
+                    lane_selector: lane_r,
+                },
+            ) => elem_l == elem_r && lane_l == lane_r,
             (Other(l), Other(r)) => {
                 // yax prints `asr #0` as just `asr`. is this actually a no-op?
-                if (l == "asr" && r == "asr #0") || (l == "asr #0" && r == "asr") {
-                    true
-                } else if (l == "lsr" && r == "lsr #0") || (l == "lsr #0" && r == "lsr") {
-                    true
-                } else if (l == "ror" && r == "ror #0") || (l == "ror #0" && r == "ror") {
+                if ((l == "asr" && r == "asr #0") || (l == "asr #0" && r == "asr"))
+                    || ((l == "lsr" && r == "lsr #0") || (l == "lsr #0" && r == "lsr"))
+                    || ((l == "ror" && r == "ror #0") || (l == "ror #0" && r == "ror"))
+                {
                     true
                 } else {
                     l == r
                 }
             }
-            (_, _) => {
-                false
-            }
+            (_, _) => false,
         }
     }
 }
 
 #[test]
 fn test_operand_parsing() {
-    assert_eq!(ParsedOperand::parse("xzr", 64), (ParsedOperand::Register { size: 'x', num: 32 }, 3));
-    assert_eq!(ParsedOperand::parse("wzr", 64), (ParsedOperand::Register { size: 'w', num: 32 }, 3));
-    assert_eq!(ParsedOperand::parse("xsp", 64), (ParsedOperand::Register { size: 'x', num: 33 }, 3));
-    assert_eq!(ParsedOperand::parse("wsp", 64), (ParsedOperand::Register { size: 'w', num: 33 }, 3));
-    assert_eq!(ParsedOperand::parse("w1", 64), (ParsedOperand::Register { size: 'w', num: 1 }, 2));
-    assert_eq!(ParsedOperand::parse("x1", 64), (ParsedOperand::Register { size: 'x', num: 1 }, 2));
+    assert_eq!(
+        ParsedOperand::parse("xzr", 64),
+        (ParsedOperand::Register { size: 'x', num: 32 }, 3)
+    );
+    assert_eq!(
+        ParsedOperand::parse("wzr", 64),
+        (ParsedOperand::Register { size: 'w', num: 32 }, 3)
+    );
+    assert_eq!(
+        ParsedOperand::parse("xsp", 64),
+        (ParsedOperand::Register { size: 'x', num: 33 }, 3)
+    );
+    assert_eq!(
+        ParsedOperand::parse("wsp", 64),
+        (ParsedOperand::Register { size: 'w', num: 33 }, 3)
+    );
+    assert_eq!(
+        ParsedOperand::parse("w1", 64),
+        (ParsedOperand::Register { size: 'w', num: 1 }, 2)
+    );
+    assert_eq!(
+        ParsedOperand::parse("x1", 64),
+        (ParsedOperand::Register { size: 'x', num: 1 }, 2)
+    );
 }
 
 #[test]
 fn test_instruction_parsing() {
     let inst = ParsedDisassembly::parse("msub w17, w8, w15, w0");
-    assert_eq!(inst, ParsedDisassembly {
-        opcode: "msub".to_string(),
-        operands: [
-            Some(ParsedOperand::Register { size: 'w', num: 17 }),
-            Some(ParsedOperand::Register { size: 'w', num: 8 }),
-            Some(ParsedOperand::Register { size: 'w', num: 15 }),
-            Some(ParsedOperand::Register { size: 'w', num: 0 }),
-            None,
-            None,
-        ]
-    });
+    assert_eq!(
+        inst,
+        ParsedDisassembly {
+            opcode: "msub".to_string(),
+            operands: [
+                Some(ParsedOperand::Register { size: 'w', num: 17 }),
+                Some(ParsedOperand::Register { size: 'w', num: 8 }),
+                Some(ParsedOperand::Register { size: 'w', num: 15 }),
+                Some(ParsedOperand::Register { size: 'w', num: 0 }),
+                None,
+                None,
+            ]
+        }
+    );
 
     let inst = ParsedDisassembly::parse("stlurb w0, [x0, #0x1]");
-    assert_eq!(inst, ParsedDisassembly {
-        opcode: "stlurb".to_string(),
-        operands: [
-            Some(ParsedOperand::Register { size: 'w', num: 0 }),
-            Some(ParsedOperand::MemoryWithOffset { base: "x0".to_string(), offset: Some(1), writeback: false }),
-            None,
-            None,
-            None,
-            None,
-        ]
-    });
+    assert_eq!(
+        inst,
+        ParsedDisassembly {
+            opcode: "stlurb".to_string(),
+            operands: [
+                Some(ParsedOperand::Register { size: 'w', num: 0 }),
+                Some(ParsedOperand::MemoryWithOffset {
+                    base: "x0".to_string(),
+                    offset: Some(1),
+                    writeback: false
+                }),
+                None,
+                None,
+                None,
+                None,
+            ]
+        }
+    );
     let inst2 = ParsedDisassembly::parse("stlurb w0, [x0, #1]");
     assert_eq!(inst, inst2);
 
     let inst = ParsedDisassembly::parse("mov wsp, #0x80000001");
     assert_eq!(inst.opcode, "mov");
-    assert_eq!(inst.operands[0], Some(ParsedOperand::Register { size: 'w', num: 33 }));
-    assert_eq!(inst.operands[1], Some(ParsedOperand::Immediate(-0x7fffffff)));
+    assert_eq!(
+        inst.operands[0],
+        Some(ParsedOperand::Register { size: 'w', num: 33 })
+    );
+    assert_eq!(
+        inst.operands[1],
+        Some(ParsedOperand::Immediate(-0x7fffffff))
+    );
 }
 
 impl ParsedOperand {
@@ -145,7 +204,7 @@ impl ParsedOperand {
             }
 
             let v = if !s.starts_with("0x") {
-                i64::from_str_radix(s, 10).expect("can parse string")
+                s.parse::<i64>().expect("can parse string")
             } else {
                 u64::from_str_radix(&s[2..], 16).expect("can parse string") as i64
             };
@@ -161,25 +220,19 @@ impl ParsedOperand {
             let imm_str = &s[1..end];
             if imm_str.contains('.') {
                 use std::str::FromStr;
-                (ParsedOperand::Float(f64::from_str(imm_str).expect("can parse string")), end)
+                (
+                    ParsedOperand::Float(f64::from_str(imm_str).expect("can parse string")),
+                    end,
+                )
             } else {
                 let imm = parse_hex_or_dec(imm_str);
-                let imm = if width == 32 {
-                    imm as i32 as i64
-                } else {
-                    imm
-                };
+                let imm = if width == 32 { imm as i32 as i64 } else { imm };
                 (ParsedOperand::Immediate(imm), end)
             }
         } else if s.as_bytes()[0] == b'$' {
             let end = s.find(',').unwrap_or(s.len());
             let imm_str = &s[1..end];
-            let imm_str = if imm_str.starts_with("+") {
-                &imm_str[1..]
-            } else {
-                imm_str
-            };
-            let imm = parse_hex_or_dec(imm_str);
+            let imm = parse_hex_or_dec(imm_str.strip_prefix("+").unwrap_or(imm_str));
             (ParsedOperand::PCRel(imm), end)
         } else if s.as_bytes()[0] == b'[' {
             let brace_end = s.find(']').map(|x| x + 1).unwrap_or(s.len());
@@ -192,27 +245,31 @@ impl ParsedOperand {
 
             let addr = &s[1..brace_end - 1];
 
-            let offset = addr.rfind(',').map(|comma| {
-                addr[comma + 1..].trim()
-            }).and_then(|mut offset_str| {
-                if offset_str.as_bytes().get(0) == Some(&b'#') {
-                    offset_str = &offset_str[1..];
+            let offset = addr
+                .rfind(',')
+                .map(|comma| addr[comma + 1..].trim())
+                .and_then(|mut offset_str| {
+                    if offset_str.as_bytes().first() == Some(&b'#') {
+                        offset_str = &offset_str[1..];
 
-                    Some(parse_hex_or_dec(offset_str))
-                } else {
-                    None
-                }
-            });
+                        Some(parse_hex_or_dec(offset_str))
+                    } else {
+                        None
+                    }
+                });
 
             let base_end = addr.rfind(',').unwrap_or(addr.len());
             let base = addr[..base_end].trim();
 
             if writeback || offset.is_some() {
-                (ParsedOperand::MemoryWithOffset {
-                    base: base.to_string(),
-                    offset: offset,
-                    writeback,
-                }, end)
+                (
+                    ParsedOperand::MemoryWithOffset {
+                        base: base.to_string(),
+                        offset,
+                        writeback,
+                    },
+                    end,
+                )
             } else {
                 (ParsedOperand::Memory(base.to_string()), end)
             }
@@ -225,10 +282,13 @@ impl ParsedOperand {
                         let lane = &s[brace_end + 2..end];
                         let lane = parse_hex_or_dec(lane);
 
-                        return (ParsedOperand::SIMDElementLane {
-                            elem: group.to_string(),
-                            lane_selector: lane as u8,
-                        }, end);
+                        return (
+                            ParsedOperand::SIMDElementLane {
+                                elem: group.to_string(),
+                                lane_selector: lane as u8,
+                            },
+                            end,
+                        );
                     }
                 }
 
@@ -251,23 +311,15 @@ impl ParsedOperand {
                     }
                     let num: Result<u8, ParseIntError> = s[1..end].parse();
                     match num {
-                        Ok(num) => {
-                            (ParsedOperand::Register { size: sz, num }, end)
-                        }
-                        Err(_) => {
-                            (ParsedOperand::Other(s[..end].to_string()), end)
-                        }
+                        Ok(num) => (ParsedOperand::Register { size: sz, num }, end),
+                        Err(_) => (ParsedOperand::Other(s[..end].to_string()), end),
                     }
                 }
                 sz @ 'b' | sz @ 'h' | sz @ 's' | sz @ 'd' | sz @ 'q' => {
                     let num: Result<u8, ParseIntError> = s[1..end].parse();
                     match num {
-                        Ok(num) => {
-                            (ParsedOperand::SIMDRegister { size: sz, num }, end)
-                        }
-                        Err(_) => {
-                            (ParsedOperand::Other(s[..end].to_string()), end)
-                        }
+                        Ok(num) => (ParsedOperand::SIMDRegister { size: sz, num }, end),
+                        Err(_) => (ParsedOperand::Other(s[..end].to_string()), end),
                     }
                 }
                 'v' => {
@@ -275,8 +327,16 @@ impl ParsedOperand {
                         Some(lane_selector_start) => {
                             let lane_selector_end = substr.find(']').unwrap();
                             let elem = substr[..lane_selector_start].to_string();
-                            let lane_selector = parse_hex_or_dec(&substr[lane_selector_start + 1..lane_selector_end]) as u8;
-                            (ParsedOperand::SIMDElementLane { elem, lane_selector }, end)
+                            let lane_selector = parse_hex_or_dec(
+                                &substr[lane_selector_start + 1..lane_selector_end],
+                            ) as u8;
+                            (
+                                ParsedOperand::SIMDElementLane {
+                                    elem,
+                                    lane_selector,
+                                },
+                                end,
+                            )
                         }
                         None => {
                             // some kind of simd element that does not include a trailing `[]`.
@@ -285,9 +345,7 @@ impl ParsedOperand {
                         }
                     }
                 }
-                _ => {
-                    (ParsedOperand::Other(s[..end].to_string()), end)
-                }
+                _ => (ParsedOperand::Other(s[..end].to_string()), end),
             }
         }
     }
@@ -298,7 +356,7 @@ struct ParsedDisassembly {
     opcode: String,
     // arm instructions do not have six operands, but due to parse ambiguity and the rather hackjob
     // parser here, pretend they might.
-    operands: [Option<ParsedOperand>; 6]
+    operands: [Option<ParsedOperand>; 6],
 }
 
 impl ParsedDisassembly {
@@ -310,12 +368,12 @@ impl ParsedDisassembly {
             let mut i = 0;
             let mut width = 64;
 
-            while operands_text.len() > 0 {
+            while !operands_text.is_empty() {
                 if operands_text.as_bytes()[0] == b',' {
                     operands_text = &operands_text[1..];
                 }
                 operands_text = operands_text.trim();
-                let (parsed, amount) = ParsedOperand::parse(&operands_text, width);
+                let (parsed, amount) = ParsedOperand::parse(operands_text, width);
                 operands[i] = Some(parsed);
                 if let Some(ParsedOperand::Register { size: 'w', .. }) = &operands[i] {
                     width = 32;
@@ -324,10 +382,7 @@ impl ParsedDisassembly {
                 i += 1;
             }
 
-            ParsedDisassembly {
-                opcode,
-                operands,
-            }
+            ParsedDisassembly { opcode, operands }
         } else {
             ParsedDisassembly {
                 opcode: s.to_string(),
@@ -363,10 +418,18 @@ fn capstone_differential() {
 
         let mut csh: capstone_sys::csh = capstone_sys::csh::default();
         assert_eq!(
-            unsafe { capstone_sys::cs_open(capstone_sys::cs_arch::CS_ARCH_ARM64, capstone_sys::cs_mode(0), &mut csh as *mut capstone_sys::csh) },
+            unsafe {
+                capstone_sys::cs_open(
+                    capstone_sys::cs_arch::CS_ARCH_ARM64,
+                    capstone_sys::cs_mode(0),
+                    &mut csh as *mut capstone_sys::csh,
+                )
+            },
             0
         );
-        let cs_insn: *mut capstone_sys::cs_insn = unsafe { libc::malloc(std::mem::size_of::<capstone_sys::cs_insn>()) as *mut capstone_sys::cs_insn };
+        let cs_insn: *mut capstone_sys::cs_insn = unsafe {
+            libc::malloc(std::mem::size_of::<capstone_sys::cs_insn>()) as *mut capstone_sys::cs_insn
+        };
         /*
         let cs = Capstone::new()
             .arm64()
@@ -387,7 +450,7 @@ fn capstone_differential() {
                 eprintln!("case {:08x}", i);
             }
 
-//            let res = cs.disasm_all(bytes, 0);
+            //            let res = cs.disasm_all(bytes, 0);
             let res = unsafe {
                 capstone_sys::cs_disasm_iter(
                     csh,
@@ -397,29 +460,36 @@ fn capstone_differential() {
                     cs_insn,
                 )
             };
-//            if let Ok(insts) = &res {
+            //            if let Ok(insts) = &res {
             if res {
-//                let insts_slice = insts.as_ref();
-//              if insts_slice.len() == 1 {
+                //                let insts_slice = insts.as_ref();
+                //              if insts_slice.len() == 1 {
                 {
                     cs_text.clear();
                     yax_text.clear();
                     // then yax should also succeed..
                     // and it should only be one instruction
-//                    let cs_text = format!("{}", insts_slice[0]);
-//                    let cs_text = &cs_text[5..];
+                    //                    let cs_text = format!("{}", insts_slice[0]);
+                    //                    let cs_text = &cs_text[5..];
                     unsafe {
                         use std::ffi::CStr;
-                        write!(cs_text, "{} {}",
-                            CStr::from_ptr((*cs_insn).mnemonic.as_ptr()).to_str().unwrap(),
+                        write!(
+                            cs_text,
+                            "{} {}",
+                            CStr::from_ptr((*cs_insn).mnemonic.as_ptr())
+                                .to_str()
+                                .unwrap(),
                             CStr::from_ptr((*cs_insn).op_str.as_ptr()).to_str().unwrap(),
-                        ).unwrap();
+                        )
+                        .unwrap();
                     };
 
                     let yax_res = yax.decode(&mut yaxpeax_arch::U8Reader::new(bytes));
                     if let Ok(inst) = yax_res {
                         write!(yax_text, "{}", inst).unwrap();
-                    } else if let Err(yaxpeax_arm::armv8::a64::DecodeError::IncompleteDecoder) = yax_res {
+                    } else if let Err(yaxpeax_arm::armv8::a64::DecodeError::IncompleteDecoder) =
+                        yax_res
+                    {
                         stats.missed_incomplete.fetch_add(1, Ordering::Relaxed);
                         continue;
                     } else {
@@ -429,7 +499,10 @@ fn capstone_differential() {
                             stats.yax_reject.fetch_add(1, Ordering::Relaxed);
                             continue;
                         } else {
-                            panic!("yax errored where capstone succeeded. cs text: '{}', bytes: {:x?}", cs_text, bytes);
+                            panic!(
+                                "yax errored where capstone succeeded. cs text: '{}', bytes: {:x?}",
+                                cs_text, bytes
+                            );
                         }
                     };
 
@@ -456,7 +529,10 @@ fn capstone_differential() {
                             eprintln!("cs: {} -> {:?}", cs_text, parsed_cs);
                         }
 
-                        if parsed_yax.opcode == parsed_cs.opcode && parsed_yax.opcode == "mrs" && parsed_yax.operands[0] == parsed_cs.operands[0] {
+                        if parsed_yax.opcode == parsed_cs.opcode
+                            && parsed_yax.opcode == "mrs"
+                            && parsed_yax.operands[0] == parsed_cs.operands[0]
+                        {
                             if let Some(ParsedOperand::Other(o)) = parsed_yax.operands[1].as_ref() {
                                 if o.starts_with("s") {
                                     // capstone knows about more system registers than yaxpeax-arm at the
@@ -499,8 +575,8 @@ fn capstone_differential() {
                         }
 
                         // don't totally understand aliasing rules for `ORR (immediate)` and mov..
-                        if cs_text.starts_with("mov ") && yax_text.starts_with("orr ") ||
-                            cs_text.starts_with("orr ") && yax_text.starts_with("mov ")
+                        if cs_text.starts_with("mov ") && yax_text.starts_with("orr ")
+                            || cs_text.starts_with("orr ") && yax_text.starts_with("mov ")
                         {
                             return true;
                         }
@@ -515,31 +591,41 @@ fn capstone_differential() {
                             return true;
                         }
 
-                        if parsed_yax.opcode == "mov" && parsed_cs.opcode == "dup" {
-                            if parsed_yax.operands == parsed_cs.operands {
-                                return true;
-                            }
+                        if parsed_yax.opcode == "mov"
+                            && parsed_cs.opcode == "dup"
+                            && parsed_yax.operands == parsed_cs.operands
+                        {
+                            return true;
                         }
-    //                    if cs_text.starts_with("dup") && yax_text.starts_with("mov ") && cs_text.replace("dup ", "mov ") == yax_text {
-    //                        return true;
-    //                    }
+                        //                    if cs_text.starts_with("dup") && yax_text.starts_with("mov ") && cs_text.replace("dup ", "mov ") == yax_text {
+                        //                        return true;
+                        //                    }
                         // capstone bug! e0030033 is `bfxil w0, wzr, #0, #1`, but capstone picks
                         // the bfc alias instead. skip these, generally.
-                        if yax_text.starts_with("bfxil") && (cs_text.starts_with("bfc") || cs_text.starts_with("bfi")) {
+                        if yax_text.starts_with("bfxil")
+                            && (cs_text.starts_with("bfc") || cs_text.starts_with("bfi"))
+                        {
                             return true;
                         }
 
                         // S being present or not has no bearing on the shift amount, #0 either
                         // way.
                         // yax will not print shift because of its ineffectual nature.
-                        if (cs_text.starts_with("strb") || cs_text.starts_with("ldrb") || cs_text.starts_with("ldrsb") || cs_text.starts_with("ldr b") || cs_text.starts_with("str b")) && cs_text.contains(" lsl #0]") {
+                        if (cs_text.starts_with("strb")
+                            || cs_text.starts_with("ldrb")
+                            || cs_text.starts_with("ldrsb")
+                            || cs_text.starts_with("ldr b")
+                            || cs_text.starts_with("str b"))
+                            && cs_text.contains(" lsl #0]")
+                        {
                             return true;
                         }
 
                         // yax uses lsl instead of uxtx when the reg size is uxtx. same for
                         // uxtw/w-regs
-                        if cs_text.replace("uxtx", "lsl") == yax_text ||
-                            cs_text.replace("uxtw", "lsl") == yax_text {
+                        if cs_text.replace("uxtx", "lsl") == yax_text
+                            || cs_text.replace("uxtw", "lsl") == yax_text
+                        {
                             return true;
                         }
 
@@ -582,17 +668,20 @@ fn capstone_differential() {
                             return true;
                         }
 
-                        return false;
+                        false
                     }
 
-    //                eprintln!("{}", yax_text);
+                    //                eprintln!("{}", yax_text);
                     if !acceptable_match(&yax_text, &cs_text) {
-                        eprintln!("disassembly mismatch: {} != {}. bytes: {:x?}", yax_text, cs_text, bytes);
+                        eprintln!(
+                            "disassembly mismatch: {} != {}. bytes: {:x?}",
+                            yax_text, cs_text, bytes
+                        );
                         std::process::abort();
                     } else {
                         stats.good.fetch_add(1, Ordering::Relaxed);
                     }
-//                } else {
+                    //                } else {
                     // yax should also fail?
                 }
             }
@@ -620,7 +709,9 @@ fn capstone_differential() {
 
     for i in 0..NR_THREADS {
         let stats = Arc::clone(&stats);
-        let handle = std::thread::spawn(move || test_range(i * range_size, i * range_size + range_size, stats));
+        let handle = std::thread::spawn(move || {
+            test_range(i * range_size, i * range_size + range_size, stats)
+        });
         handles.push(handle);
     }
 
@@ -631,5 +722,8 @@ fn capstone_differential() {
     eprintln!("match:      {}", stats.good.load(Ordering::SeqCst));
     eprintln!("mismatch:   {}", stats.mismatch.load(Ordering::SeqCst));
     eprintln!("bad reject: {}", stats.yax_reject.load(Ordering::SeqCst));
-    eprintln!("incomplete: {}", stats.missed_incomplete.load(Ordering::SeqCst));
+    eprintln!(
+        "incomplete: {}",
+        stats.missed_incomplete.load(Ordering::SeqCst)
+    );
 }

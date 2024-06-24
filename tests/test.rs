@@ -5,15 +5,14 @@
 mod armv7;
 mod armv8;
 
-use yaxpeax_arch::{Arch, Decoder, U8Reader};
 use std::fmt::Write;
+use yaxpeax_arch::{Arch, Decoder, U8Reader};
 
 fn test_range<A: Arch>(decoder: &A::Decoder, start: u64, end: u64)
 where
-    for <'a> U8Reader<'a>: yaxpeax_arch::Reader<<A as Arch>::Address, <A as Arch>::Word>,
-    <A as Arch>::Instruction: std::fmt::Display
+    for<'a> U8Reader<'a>: yaxpeax_arch::Reader<<A as Arch>::Address, <A as Arch>::Word>,
+    <A as Arch>::Instruction: std::fmt::Display,
 {
-
     let mut instr = A::Instruction::default();
     let mut s = String::new();
 

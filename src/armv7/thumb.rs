@@ -1,15 +1,15 @@
 use yaxpeax_arch::Arch;
 
 use crate::armv7::{
-    ARMv7, ConditionCode, DecodeError, CReg, Reg, Reader, RegShift,
-    Operand, Opcode, Instruction, InstDecoder, StatusRegMask
+    ARMv7, CReg, ConditionCode, DecodeError, InstDecoder, Instruction, Opcode, Operand, Reader,
+    Reg, RegShift, StatusRegMask,
 };
 
 use bitvec::prelude::*;
 
 #[allow(non_snake_case)]
 fn ROR_C(x: u32, shift: u16) -> (u32, bool) {
-//    let m = shift % 32; // `shift` is known to be 31 or lower
+    //    let m = shift % 32; // `shift` is known to be 31 or lower
     let m = shift;
     let result = (x >> m) | (x << (32 - m));
     let carry_out = (result >> 31) & 1 != 0;
@@ -22,9 +22,7 @@ fn ThumbExpandImm_C(imm: u16) -> Result<u32, DecodeError> {
         let ty = (imm >> 8) & 0b11;
         let imm_low = (imm & 0b11111111) as u32;
         match ty {
-            0b00 => {
-                Ok(imm_low)
-            }
+            0b00 => Ok(imm_low),
             0b01 => {
                 if imm_low == 0 {
                     return Err(DecodeError::Unpredictable);
@@ -59,21 +57,21 @@ fn ThumbExpandImm_C(imm: u16) -> Result<u32, DecodeError> {
 #[allow(non_snake_case)]
 fn DecodeImmShift(reg: u8, ty: u8, imm5: u8) -> RegShift {
     let imm = match ty {
-        0b00 => { imm5 },
+        0b00 => imm5,
         0b01 => {
             if imm5 == 0 {
                 32
             } else {
                 imm5
             }
-        },
+        }
         0b10 => {
             if imm5 == 0 {
                 32
             } else {
                 imm5
             }
-        },
+        }
         0b11 => {
             // ignores the `if ty == 11 && imm5 = 00000 then shift_t = RRX && shift_n = 1`
             imm5
@@ -82,16 +80,15 @@ fn DecodeImmShift(reg: u8, ty: u8, imm5: u8) -> RegShift {
             unreachable!("impossible bit pattern");
         }
     };
-    RegShift::from_raw(
-        0b00000 |    // `RegImm`
-        reg as u16 |
-        ((ty as u16) << 5)|
-        ((imm as u16) << 7)
-    )
+    RegShift::from_raw(reg as u16 | ((ty as u16) << 5) | ((imm as u16) << 7))
 }
 
 #[allow(non_snake_case)]
-pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(decoder: &InstDecoder, inst: &mut Instruction, words: &mut T) -> Result<(), <ARMv7 as Arch>::DecodeError> {
+pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(
+    decoder: &InstDecoder,
+    inst: &mut Instruction,
+    words: &mut T,
+) -> Result<(), <ARMv7 as Arch>::DecodeError> {
     // these are cleared in `armv7::InstDecoder::decode_into`.
     // they must be reset when switching out of thumb decoding or decoding a new thumb instruction,
     // which that `decode_into` is the entrypoint for in all cases.
@@ -192,8 +189,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     Operand::Nothing,
                                 ];
                             }
-                            0b0010 |
-                            0b0110 => {
+                            0b0010 | 0b0110 => {
                                 // `STRD (immediate)` (`A8-687`)
                                 // v6T2
                                 // bit 5 (w) == 0
@@ -210,16 +206,25 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     Operand::Reg(Reg::from_u8(rt)),
                                     Operand::Reg(Reg::from_u8(rd)),
                                     if p {
-                                        Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8 << 2, u, w)
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8 << 2,
+                                            u,
+                                            w,
+                                        )
                                     } else {
                                         // p == 0 and w == 0 is impossible, would be tbb/tbh
-                                        Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8 << 2, u, false)
+                                        Operand::RegDerefPostindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8 << 2,
+                                            u,
+                                            false,
+                                        )
                                     },
                                     Operand::Nothing,
                                 ];
                             }
-                            0b0011 |
-                            0b0111 => {
+                            0b0011 | 0b0111 => {
                                 // `LDRD (immediate)`/`(literal)` (`A8-687`)
                                 // bit 5 (w) == 0
                                 let w = false;
@@ -241,10 +246,20 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                         Operand::Reg(Reg::from_u8(rt)),
                                         Operand::Reg(Reg::from_u8(rd)),
                                         if p {
-                                            Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8 << 2, u, w)
+                                            Operand::RegDerefPreindexOffset(
+                                                Reg::from_u8(rn),
+                                                imm8 << 2,
+                                                u,
+                                                w,
+                                            )
                                         } else {
                                             // p == 0 and w == 0 is impossible, would be tbb/tbh
-                                            Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8 << 2, u, false)
+                                            Operand::RegDerefPostindexOffset(
+                                                Reg::from_u8(rn),
+                                                imm8 << 2,
+                                                u,
+                                                false,
+                                            )
                                         },
                                         Operand::Nothing,
                                     ];
@@ -259,7 +274,12 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     inst.operands = [
                                         Operand::Reg(Reg::from_u8(rt)),
                                         Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8 << 2, u, false),
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8 << 2,
+                                            u,
+                                            false,
+                                        ),
                                         Operand::Nothing,
                                     ];
                                 }
@@ -273,7 +293,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                 match op3 {
                                     0b0100 => {
                                         // `STREXB` (`A8-693`)
-                                        if rd == 13 || rd == 15 || rt == 13 || rt == 15 || rn == 15 {
+                                        if rd == 13 || rd == 15 || rt == 13 || rt == 15 || rn == 15
+                                        {
                                             decoder.unpredictable()?;
                                         }
                                         if rd == rn || rd == rt {
@@ -291,7 +312,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     }
                                     0b0101 => {
                                         // `STREXH` (`A8-693`)
-                                        if rd == 13 || rd == 15 || rt == 13 || rt == 15 || rn == 15 {
+                                        if rd == 13 || rd == 15 || rt == 13 || rt == 15 || rn == 15
+                                        {
                                             decoder.unpredictable()?;
                                         }
                                         if rd == rn || rd == rt {
@@ -309,7 +331,14 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     }
                                     0b0111 => {
                                         // `STREXD` (`A8-693`)
-                                        if rd == 13 || rd == 15 || rt == 13 || rt == 15 || rt2 == 13 || rt2 == 15 || rn == 15 {
+                                        if rd == 13
+                                            || rd == 15
+                                            || rt == 13
+                                            || rt == 15
+                                            || rt2 == 13
+                                            || rt2 == 15
+                                            || rn == 15
+                                        {
                                             decoder.unpredictable()?;
                                         }
                                         if rd == rn || rd == rt || rd == rt2 {
@@ -344,7 +373,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::RegDerefPreindexReg(
                                                 Reg::from_u8(rn),
                                                 Reg::from_u8(rd),
-                                                true, // add
+                                                true,  // add
                                                 false, // no wback
                                             ),
                                             Operand::Nothing,
@@ -365,11 +394,10 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                                 // ourselves
                                                 RegShift::from_raw(
                                                     0b10000 |        // `RegImm`
-                                                    rd as u16 |            // reg == rd
-                                                    (0b00 << 5) |   // LSL
-                                                    (1 << 7)        // shift == #1
+                                                    rd as u16 |   // LSL
+                                                    (1 << 7), // shift == #1
                                                 ),
-                                                true, // add
+                                                true,  // add
                                                 false, // no wback
                                             ),
                                             Operand::Nothing,
@@ -411,7 +439,12 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     }
                                     0b0110 => {
                                         // `LDREXD`
-                                        if rt == 13 || rt == 15 || rt2 == 13 || rt2 == 15 || rn == 15 {
+                                        if rt == 13
+                                            || rt == 15
+                                            || rt2 == 13
+                                            || rt2 == 15
+                                            || rn == 15
+                                        {
                                             decoder.unpredictable()?;
                                         }
                                         // TODO: should_is_must()
@@ -429,10 +462,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     }
                                 }
                             }
-                            0b1000 |
-                            0b1010 |
-                            0b1100 |
-                            0b1110 => {
+                            0b1000 | 0b1010 | 0b1100 | 0b1110 => {
                                 // `STRD (immediate)` (`A8-687`)
                                 // v6T2
                                 let w = instr2[5];
@@ -448,18 +478,25 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     Operand::Reg(Reg::from_u8(rt)),
                                     Operand::Reg(Reg::from_u8(rd)),
                                     if p {
-                                        Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8 << 2, u, w)
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8 << 2,
+                                            u,
+                                            w,
+                                        )
                                     } else {
                                         // p == 0 and w == 0 is impossible, would be tbb/tbh
-                                        Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8 << 2, u, false)
+                                        Operand::RegDerefPostindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8 << 2,
+                                            u,
+                                            false,
+                                        )
                                     },
                                     Operand::Nothing,
                                 ];
                             }
-                            0b1001 |
-                            0b1011 |
-                            0b1101 |
-                            0b1111 => {
+                            0b1001 | 0b1011 | 0b1101 | 0b1111 => {
                                 // `LDRD (immediate)` (`A8-687`)
                                 // v6T2
                                 let w = instr2[5];
@@ -481,10 +518,20 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                         Operand::Reg(Reg::from_u8(rt)),
                                         Operand::Reg(Reg::from_u8(rd)),
                                         if p {
-                                            Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8 << 2, u, w)
+                                            Operand::RegDerefPreindexOffset(
+                                                Reg::from_u8(rn),
+                                                imm8 << 2,
+                                                u,
+                                                w,
+                                            )
                                         } else {
                                             // p == 0 and w == 0 is impossible, would be tbb/tbh
-                                            Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8 << 2, u, false)
+                                            Operand::RegDerefPostindexOffset(
+                                                Reg::from_u8(rn),
+                                                imm8 << 2,
+                                                u,
+                                                false,
+                                            )
                                         },
                                         Operand::Nothing,
                                     ];
@@ -499,7 +546,12 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                     inst.operands = [
                                         Operand::Reg(Reg::from_u8(rt)),
                                         Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8 << 2, u, false),
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8 << 2,
+                                            u,
+                                            false,
+                                        ),
                                         Operand::Nothing,
                                     ];
                                 }
@@ -535,10 +587,10 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                         decoder.unpredictable()?;
                                     }
                                     inst.opcode = Opcode::STM(
-                                        true, // add
+                                        true,  // add
                                         false, // preincrement
-                                        w, // wback
-                                        true, // usermode
+                                        w,     // wback
+                                        true,  // usermode
                                     );
                                     inst.operands = [
                                         Operand::RegWBack(Reg::from_u8(rn), w),
@@ -578,9 +630,9 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                         }
                                         inst.opcode = Opcode::STM(
                                             false, // decrement
-                                            true, // preincrement
-                                            w, // wback
-                                            true, // usermode?
+                                            true,  // preincrement
+                                            w,     // wback
+                                            true,  // usermode?
                                         );
                                         inst.operands = [
                                             Operand::RegWBack(Reg::from_u8(rn), w),
@@ -707,12 +759,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                     let tp = lower2[4..6].load::<u16>();
                     let rm = lower2[0..4].load::<u16>();
 
-                    let shift = RegShift::from_raw(
-                        0b00000 | // reg-imm shift
-                        rm as u16 |
-                        (imm2 << 7) | (imm3 << 9) |
-                        tp << 5
-                    );
+                    let shift = RegShift::from_raw(rm as u16 | (imm2 << 7) | (imm3 << 9) | tp << 5);
                     let shift = Operand::RegShift(shift);
 
                     inst.s = s;
@@ -789,7 +836,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                                 Operand::Nothing,
                                             ];
                                         }
-                                    },
+                                    }
                                     0b01 => {
                                         // `LSR (immediate)` (`A8-473`)
                                         // encoding T2
@@ -1352,7 +1399,11 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                         0b10010 => {
                             let imm3_2 = ((lower >> 10) & 0b11100) | ((lower >> 6) & 0b11);
                             if imm3_2 != 0 {
-                                let shift = DecodeImmShift(rn, instr2[5..6].load::<u8>() << 1, imm3_2 as u8);
+                                let shift = DecodeImmShift(
+                                    rn,
+                                    instr2[5..6].load::<u8>() << 1,
+                                    imm3_2 as u8,
+                                );
                                 // `SSAT`
                                 // v6T2
                                 inst.opcode = Opcode::SSAT;
@@ -1496,12 +1547,11 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                         let s = instr2[10..11].load::<u32>();
                         let j1 = lower2[13..14].load::<u32>();
                         let j2 = lower2[11..12].load::<u32>();
-                        let imm =
-                            (imm11 as i32) |
-                            ((imm6 as i32) << 11) |
-                            ((j1 as i32) << 17) |
-                            ((j2 as i32) << 18) |
-                            ((s as i32) << 19);
+                        let imm = (imm11 as i32)
+                            | ((imm6 as i32) << 11)
+                            | ((j1 as i32) << 17)
+                            | ((j2 as i32) << 18)
+                            | ((s as i32) << 19);
                         let imm = (imm << 12) >> 12;
                         inst.condition = ConditionCode::build(((instr >> 6) & 0b1111) as u8);
                         inst.opcode = Opcode::B;
@@ -1536,56 +1586,31 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                         Operand::Nothing,
                                         Operand::Nothing,
                                     ];
-                                } else {
-                                    if op == 0b0111000 {
-                                        if op2 & 0b0011 == 0b00 {
-                                            // `Move to Special register, Application level` (`A8-501`)
-                                            let mask = (lower >> 10) & 0b11;
-                                            let spec_reg = match mask {
-                                                0b00 => {
-                                                    // TODO: generally "unpredictable" is
-                                                    // overridden by DecodeMode::Any but there's
-                                                    // nothing to salvage here?
-                                                    return Err(DecodeError::Unpredictable);
-                                                }
-                                                0b01 => {
-                                                    StatusRegMask::APSR_G
-                                                }
-                                                0b10 => {
-                                                    StatusRegMask::APSR_NZCVQ
-                                                }
-                                                0b11 => {
-                                                    StatusRegMask::APSR_NZCVQG
-                                                }
-                                                _ => {
-                                                    unreachable!("impossible mask bits");
-                                                }
-                                            };
-                                            inst.opcode = Opcode::MSR;
-                                            inst.operands = [
-                                                Operand::StatusRegMask(spec_reg),
-                                                Operand::Reg(Reg::from_u8(rn)),
-                                                Operand::Nothing,
-                                                Operand::Nothing,
-                                            ];
-                                        } else {
-                                            // `Move to Special register, System level` (`B9-1984`)
-                                            let mask = lower2[8..12].load::<u8>();
-                                            let R = instr2[4];
-                                            inst.opcode = Opcode::MSR;
-                                            inst.operands = [
-                                                // TODO: is this the appropriate?
-                                                if let Some(op) = Reg::from_sysm(R, mask) {
-                                                    // TODO: from_sysm should succeed?
-                                                    op
-                                                } else {
-                                                    return Err(DecodeError::InvalidOperand);
-                                                },
-                                                Operand::Reg(Reg::from_u8(rn)),
-                                                Operand::Nothing,
-                                                Operand::Nothing,
-                                            ];
-                                        }
+                                } else if op == 0b0111000 {
+                                    if op2 & 0b0011 == 0b00 {
+                                        // `Move to Special register, Application level` (`A8-501`)
+                                        let mask = (lower >> 10) & 0b11;
+                                        let spec_reg = match mask {
+                                            0b00 => {
+                                                // TODO: generally "unpredictable" is
+                                                // overridden by DecodeMode::Any but there's
+                                                // nothing to salvage here?
+                                                return Err(DecodeError::Unpredictable);
+                                            }
+                                            0b01 => StatusRegMask::APSR_G,
+                                            0b10 => StatusRegMask::APSR_NZCVQ,
+                                            0b11 => StatusRegMask::APSR_NZCVQG,
+                                            _ => {
+                                                unreachable!("impossible mask bits");
+                                            }
+                                        };
+                                        inst.opcode = Opcode::MSR;
+                                        inst.operands = [
+                                            Operand::StatusRegMask(spec_reg),
+                                            Operand::Reg(Reg::from_u8(rn)),
+                                            Operand::Nothing,
+                                            Operand::Nothing,
+                                        ];
                                     } else {
                                         // `Move to Special register, System level` (`B9-1984`)
                                         let mask = lower2[8..12].load::<u8>();
@@ -1604,6 +1629,23 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::Nothing,
                                         ];
                                     }
+                                } else {
+                                    // `Move to Special register, System level` (`B9-1984`)
+                                    let mask = lower2[8..12].load::<u8>();
+                                    let R = instr2[4];
+                                    inst.opcode = Opcode::MSR;
+                                    inst.operands = [
+                                        // TODO: is this the appropriate?
+                                        if let Some(op) = Reg::from_sysm(R, mask) {
+                                            // TODO: from_sysm should succeed?
+                                            op
+                                        } else {
+                                            return Err(DecodeError::InvalidOperand);
+                                        },
+                                        Operand::Reg(Reg::from_u8(rn)),
+                                        Operand::Nothing,
+                                        Operand::Nothing,
+                                    ];
                                 }
                             } else if op < 0b0111011 {
                                 // `Change Processor State, and hints` (`A6-234`)
@@ -1648,89 +1690,87 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::Nothing,
                                         ];
                                     }
+                                } else if op2 >= 0b11110000 {
+                                    // `DBG` (`A8-378`)
+                                    let option = lower2[0..4].load::<u16>();
+                                    inst.opcode = Opcode::DBG;
+                                    inst.operands = [
+                                        Operand::Imm12(option),
+                                        Operand::Nothing,
+                                        Operand::Nothing,
+                                        Operand::Nothing,
+                                    ];
                                 } else {
-                                    if op2 >= 0b11110000 {
-                                        // `DBG` (`A8-378`)
-                                        let option = lower2[0..4].load::<u16>();
-                                        inst.opcode = Opcode::DBG;
-                                        inst.operands = [
-                                            Operand::Imm12(option),
-                                            Operand::Nothing,
-                                            Operand::Nothing,
-                                            Operand::Nothing,
-                                        ];
-                                    } else {
-                                        match op2 {
-                                            0b00000000 => {
-                                                // `NOP` (`A8-511`)
-                                                // v6T2
-                                                // TODO: should_is_must
-                                                inst.opcode = Opcode::NOP;
-                                                inst.operands = [
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                ];
-                                            }
-                                            0b00000001 => {
-                                                // `YIELD` (`A8-1109`)
-                                                // v7
-                                                inst.opcode = Opcode::YIELD;
-                                                inst.operands = [
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                ];
-                                            }
-                                            0b00000010 => {
-                                                // `WFE` (`A8-1105`)
-                                                // v7
-                                                inst.opcode = Opcode::WFE;
-                                                inst.operands = [
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                ];
-                                            }
-                                            0b00000011 => {
-                                                // `WFI` (`A8-1107`)
-                                                // v7
-                                                inst.opcode = Opcode::WFI;
-                                                inst.operands = [
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                ];
-                                            }
-                                            0b00000100 => {
-                                                // `SEV` (`A8-607`)
-                                                // v7
-                                                inst.opcode = Opcode::SEV;
-                                                inst.operands = [
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                ];
-                                            }
-                                            0b00010100 => {
-                                                // `CSDB` (`A8-376`)
-                                                // v6T2
-                                                inst.opcode = Opcode::CSDB;
-                                                inst.operands = [
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                    Operand::Nothing,
-                                                ];
-                                            }
-                                            _ => {
-                                                return Err(DecodeError::Undefined);
-                                            }
+                                    match op2 {
+                                        0b00000000 => {
+                                            // `NOP` (`A8-511`)
+                                            // v6T2
+                                            // TODO: should_is_must
+                                            inst.opcode = Opcode::NOP;
+                                            inst.operands = [
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                            ];
+                                        }
+                                        0b00000001 => {
+                                            // `YIELD` (`A8-1109`)
+                                            // v7
+                                            inst.opcode = Opcode::YIELD;
+                                            inst.operands = [
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                            ];
+                                        }
+                                        0b00000010 => {
+                                            // `WFE` (`A8-1105`)
+                                            // v7
+                                            inst.opcode = Opcode::WFE;
+                                            inst.operands = [
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                            ];
+                                        }
+                                        0b00000011 => {
+                                            // `WFI` (`A8-1107`)
+                                            // v7
+                                            inst.opcode = Opcode::WFI;
+                                            inst.operands = [
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                            ];
+                                        }
+                                        0b00000100 => {
+                                            // `SEV` (`A8-607`)
+                                            // v7
+                                            inst.opcode = Opcode::SEV;
+                                            inst.operands = [
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                            ];
+                                        }
+                                        0b00010100 => {
+                                            // `CSDB` (`A8-376`)
+                                            // v6T2
+                                            inst.opcode = Opcode::CSDB;
+                                            inst.operands = [
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                                Operand::Nothing,
+                                            ];
+                                        }
+                                        _ => {
+                                            return Err(DecodeError::Undefined);
                                         }
                                     }
                                 }
@@ -1748,7 +1788,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::Nothing,
                                             Operand::Nothing,
                                         ];
-                                    },
+                                    }
                                     0b0001 => {
                                         // `ENTERX` (`A9-1116`)
                                         // ThumbEE
@@ -1759,7 +1799,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::Nothing,
                                             Operand::Nothing,
                                         ];
-                                    },
+                                    }
                                     0b0010 => {
                                         // `CLREX` (`A8-358`)
                                         // v7
@@ -1770,7 +1810,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::Nothing,
                                             Operand::Nothing,
                                         ];
-                                    },
+                                    }
                                     0b0100 => {
                                         // `DSB` (`A8-381`)
                                         // v7
@@ -1782,7 +1822,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::Nothing,
                                             Operand::Nothing,
                                         ];
-                                    },
+                                    }
                                     0b0101 => {
                                         // `DMB` (`A8-379`)
                                         // v7
@@ -1794,7 +1834,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::Nothing,
                                             Operand::Nothing,
                                         ];
-                                    },
+                                    }
                                     0b0110 => {
                                         // `ISB` (`A8-390`)
                                         // v7
@@ -1806,7 +1846,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::Nothing,
                                             Operand::Nothing,
                                         ];
-                                    },
+                                    }
                                     _ => {
                                         return Err(DecodeError::Undefined);
                                     }
@@ -1874,87 +1914,83 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                         Operand::Nothing,
                                         Operand::Nothing,
                                     ];
+                                } else if op == 0b0111110 {
+                                    // `MRS` (`A8-497`)
+                                    // v6T2
+                                    inst.opcode = Opcode::MRS;
+                                    let rd = ((lower >> 8) & 0b1111) as u8;
+                                    inst.opcode = Opcode::MRS;
+                                    inst.operands = [
+                                        Operand::Reg(Reg::from_u8(rd)),
+                                        // TODO: "<spec_reg>"?
+                                        if let Some(op) = Reg::from_sysm(false, 0) {
+                                            // TODO: from_sysm should succeed?
+                                            op
+                                        } else {
+                                            return Err(DecodeError::InvalidOperand);
+                                        },
+                                        Operand::Nothing,
+                                        Operand::Nothing,
+                                    ];
                                 } else {
-                                    if op == 0b0111110 {
-                                        // `MRS` (`A8-497`)
-                                        // v6T2
-                                        inst.opcode = Opcode::MRS;
-                                        let rd = ((lower >> 8) & 0b1111) as u8;
-                                        inst.opcode = Opcode::MRS;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            // TODO: "<spec_reg>"?
-                                            if let Some(op) = Reg::from_sysm(false, 0) {
-                                                // TODO: from_sysm should succeed?
-                                                op
-                                            } else {
-                                                return Err(DecodeError::InvalidOperand);
-                                            },
-                                            Operand::Nothing,
-                                            Operand::Nothing,
-                                        ];
-                                    } else {
-                                        // `MRS` (`B9-1976`)
-                                        // v6T2
-                                        inst.opcode = Opcode::MRS;
-                                        let rd = ((lower >> 8) & 0b1111) as u8;
-                                        let r = (instr >> 4) & 1;
-                                        inst.opcode = Opcode::MRS;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            // TODO: "<spec_reg>"?
-                                            if let Some(op) = Reg::from_sysm(r != 0, 0) {
-                                                // TODO: from_sysm should succeed?
-                                                op
-                                            } else {
-                                                return Err(DecodeError::InvalidOperand);
-                                            },
-                                            Operand::Nothing,
-                                            Operand::Nothing,
-                                        ];
-                                    }
+                                    // `MRS` (`B9-1976`)
+                                    // v6T2
+                                    inst.opcode = Opcode::MRS;
+                                    let rd = ((lower >> 8) & 0b1111) as u8;
+                                    let r = (instr >> 4) & 1;
+                                    inst.opcode = Opcode::MRS;
+                                    inst.operands = [
+                                        Operand::Reg(Reg::from_u8(rd)),
+                                        // TODO: "<spec_reg>"?
+                                        if let Some(op) = Reg::from_sysm(r != 0, 0) {
+                                            // TODO: from_sysm should succeed?
+                                            op
+                                        } else {
+                                            return Err(DecodeError::InvalidOperand);
+                                        },
+                                        Operand::Nothing,
+                                        Operand::Nothing,
+                                    ];
                                 }
                             }
-                        } else {
-                            if op == 0b1111111 {
-                                if op1 == 0b000 {
-                                    // `SMC` (aka `SMI`) (`B9-1988`)
-                                    // "Security Extensions"
-                                    let imm = instr & 0b1111;
-                                    inst.opcode = Opcode::SMC;
-                                    inst.operands = [
-                                        Operand::Imm12(imm),
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else {
-                                    // `UDF` (`A8-759`)
-                                    // All (first defined in issue `C.a`)
-                                    // TODO: should this decode to an intentional `UDF`
-                                    // instruction?
-                                    return Err(DecodeError::Undefined);
-                                }
-                            } else if op == 0b1111110 {
-                                if op1 == 0b000 {
-                                    // `HVC` (`B8-1970`)
-                                    // v7VE
-                                    let imm = lower & 0b1111_1111_1111;
-                                    inst.opcode = Opcode::HVC;
-                                    inst.operands = [
-                                        Operand::Imm12(imm),
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else {
-                                    // undefined, but by not being mentioned in the manual
-                                    return Err(DecodeError::Undefined);
-                                }
+                        } else if op == 0b1111111 {
+                            if op1 == 0b000 {
+                                // `SMC` (aka `SMI`) (`B9-1988`)
+                                // "Security Extensions"
+                                let imm = instr & 0b1111;
+                                inst.opcode = Opcode::SMC;
+                                inst.operands = [
+                                    Operand::Imm12(imm),
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else {
+                                // `UDF` (`A8-759`)
+                                // All (first defined in issue `C.a`)
+                                // TODO: should this decode to an intentional `UDF`
+                                // instruction?
+                                return Err(DecodeError::Undefined);
+                            }
+                        } else if op == 0b1111110 {
+                            if op1 == 0b000 {
+                                // `HVC` (`B8-1970`)
+                                // v7VE
+                                let imm = lower & 0b1111_1111_1111;
+                                inst.opcode = Opcode::HVC;
+                                inst.operands = [
+                                    Operand::Imm12(imm),
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
                             } else {
                                 // undefined, but by not being mentioned in the manual
                                 return Err(DecodeError::Undefined);
                             }
+                        } else {
+                            // undefined, but by not being mentioned in the manual
+                            return Err(DecodeError::Undefined);
                         }
                     }
                 } else {
@@ -1965,12 +2001,11 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                     let s = instr2[10..11].load::<u32>();
                     let i1 = 0x1 ^ s ^ j1;
                     let i2 = 0x1 ^ s ^ j2;
-                    let imm =
-                        (imm11 as i32) |
-                        ((imm10 as i32) << 11) |
-                        ((i2 as i32) << 21) |
-                        ((i1 as i32) << 22) |
-                        ((s as i32) << 23);
+                    let imm = (imm11 as i32)
+                        | ((imm10 as i32) << 11)
+                        | ((i2 as i32) << 21)
+                        | ((i1 as i32) << 22)
+                        | ((s as i32) << 23);
                     let imm = (imm << 8) >> 8;
                     inst.operands = [
                         Operand::BranchThumbOffset(imm),
@@ -2037,13 +2072,11 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                                 Reg::from_u8(rn),
                                                 RegShift::from_raw(
                                                     // do things
-                                                    0b00000 |       // imm shift
                                                     (imm2 << 7) |   // imm
-                                                    rm as u16 |            // shiftee
-                                                    (0b00 << 5) // shift style (lsl)
+                                                    rm as u16, // shift style (lsl)
                                                 ),
-                                                true,   // add
-                                                false,  // wback
+                                                true,  // add
+                                                false, // wback
                                             ),
                                             Operand::Nothing,
                                             Operand::Nothing,
@@ -2059,8 +2092,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::RegDerefPreindexOffset(
                                                 Reg::from_u8(rn),
                                                 imm8,
-                                                true,   // add
-                                                false,  // wback
+                                                true,  // add
+                                                false, // wback
                                             ),
                                             Operand::Nothing,
                                             Operand::Nothing,
@@ -2124,13 +2157,11 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                                 Reg::from_u8(rn),
                                                 RegShift::from_raw(
                                                     // do things
-                                                    0b00000 |       // imm shift
                                                     (imm2 << 7) |   // imm
-                                                    rm as u16 |            // shiftee
-                                                    (0b00 << 5) // shift style (lsl)
+                                                    rm as u16, // shift style (lsl)
                                                 ),
-                                                true,   // add
-                                                false,  // wback
+                                                true,  // add
+                                                false, // wback
                                             ),
                                             Operand::Nothing,
                                             Operand::Nothing,
@@ -2145,8 +2176,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::RegDerefPreindexOffset(
                                                 Reg::from_u8(rn),
                                                 imm8,
-                                                true,   // add
-                                                false,  // wback
+                                                true,  // add
+                                                false, // wback
                                             ),
                                             Operand::Nothing,
                                             Operand::Nothing,
@@ -2210,13 +2241,11 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                                 Reg::from_u8(rn),
                                                 RegShift::from_raw(
                                                     // do things
-                                                    0b00000 |       // imm shift
                                                     (imm2 << 7) |   // imm
-                                                    rm as u16 |            // shiftee
-                                                    (0b00 << 5) // shift style (lsl)
+                                                    rm as u16, // shift style (lsl)
                                                 ),
-                                                true,   // add
-                                                false,  // wback
+                                                true,  // add
+                                                false, // wback
                                             ),
                                             Operand::Nothing,
                                             Operand::Nothing,
@@ -2231,8 +2260,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                                             Operand::RegDerefPreindexOffset(
                                                 Reg::from_u8(rn),
                                                 imm8,
-                                                true,   // add
-                                                false,  // wback
+                                                true,  // add
+                                                false, // wback
                                             ),
                                             Operand::Nothing,
                                             Operand::Nothing,
@@ -2408,159 +2437,146 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                             if rn == 0b1111 {
                                 // `(literal)`
                                 let opcode = if rt == 0b1111 {
-                                    [
-                                        Opcode::PLD,
-                                        Opcode::PLD,
-                                        Opcode::LDR,
-                                    ][size]
+                                    [Opcode::PLD, Opcode::PLD, Opcode::LDR][size]
                                 } else {
-                                    [
-                                        Opcode::LDRB,
-                                        Opcode::LDRH,
-                                        Opcode::LDR,
-                                    ][size]
+                                    [Opcode::LDRB, Opcode::LDRH, Opcode::LDR][size]
                                 };
                                 let u = false; // instr2[7], but known 0 here
                                 let imm12 = lower2[..12].load::<u16>();
                                 inst.opcode = opcode;
                                 inst.operands = [
                                     Operand::Reg(Reg::from_u8(rt)),
-                                    Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm12, u, false), // no add, no wback
+                                    Operand::RegDerefPreindexOffset(
+                                        Reg::from_u8(rn),
+                                        imm12,
+                                        u,
+                                        false,
+                                    ), // no add, no wback
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 == 0b000000 {
+                                // `(register, Thumb)`
+                                let opcode = if rt == 0b1111 {
+                                    [Opcode::PLD, Opcode::PLD, Opcode::LDR][size]
+                                } else {
+                                    [Opcode::LDRB, Opcode::LDRH, Opcode::LDR][size]
+                                };
+                                let rm = lower2[0..4].load::<u8>();
+                                let imm2 = lower2[4..6].load::<u8>();
+                                inst.opcode = opcode;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rt)),
+                                    Operand::RegDerefPreindexRegShift(
+                                        Reg::from_u8(rn),
+                                        RegShift::from_raw(rm as u16 | ((imm2 as u16) << 7)),
+                                        true,  // add
+                                        false, // wback
+                                    ),
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 & 0b111100 == 0b110000 {
+                                // `(immediate, Thumb)`
+                                let opcode = if rt == 0b1111 {
+                                    [Opcode::PLD, Opcode::PLD, Opcode::LDR][size]
+                                } else {
+                                    [Opcode::LDRB, Opcode::LDRH, Opcode::LDR][size]
+                                };
+                                let w = lower2[8];
+                                let u = lower2[9];
+                                let p = lower2[10];
+                                let imm8 = lower2[..8].load::<u16>();
+                                inst.opcode = opcode;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rt)),
+                                    if p {
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            w,
+                                        )
+                                    } else {
+                                        Operand::RegDerefPostindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            false,
+                                        )
+                                    },
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 & 0b111100 == 0b111000 {
+                                // `(immediate, Thumb)`
+                                let opcode = if rt == 0b1111 {
+                                    [Opcode::PLD, Opcode::PLD, Opcode::LDRT][size]
+                                } else {
+                                    [Opcode::LDRBT, Opcode::LDRHT, Opcode::LDRT][size]
+                                };
+                                let w = lower2[8];
+                                let u = lower2[9];
+                                let p = lower2[10];
+                                let imm8 = lower2[..8].load::<u16>();
+                                inst.opcode = opcode;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rt)),
+                                    if p {
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            w,
+                                        )
+                                    } else {
+                                        Operand::RegDerefPostindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            false,
+                                        )
+                                    },
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 & 0b100100 == 0b100100 {
+                                // `(immediate, Thumb)`
+                                let opcode = if rt == 0b1111 {
+                                    [Opcode::PLD, Opcode::PLD, Opcode::LDR][size]
+                                } else {
+                                    [Opcode::LDRB, Opcode::LDRH, Opcode::LDR][size]
+                                };
+                                let w = lower2[8];
+                                let u = lower2[9];
+                                let p = lower2[10];
+                                let imm8 = lower2[..8].load::<u16>();
+                                inst.opcode = opcode;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rt)),
+                                    if p {
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            w,
+                                        )
+                                    } else {
+                                        Operand::RegDerefPostindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            false,
+                                        )
+                                    },
                                     Operand::Nothing,
                                     Operand::Nothing,
                                 ];
                             } else {
-                                if op2 == 0b000000 {
-                                    // `(register, Thumb)`
-                                    let opcode = if rt == 0b1111 {
-                                        [
-                                            Opcode::PLD,
-                                            Opcode::PLD,
-                                            Opcode::LDR,
-                                        ][size]
-                                    } else {
-                                        [
-                                            Opcode::LDRB,
-                                            Opcode::LDRH,
-                                            Opcode::LDR,
-                                        ][size]
-                                    };
-                                    let rm = lower2[0..4].load::<u8>();
-                                    let imm2 = lower2[4..6].load::<u8>();
-                                    inst.opcode = opcode;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rt)),
-                                        Operand::RegDerefPreindexRegShift(
-                                            Reg::from_u8(rn),
-                                            RegShift::from_raw(
-                                                0b00000 |    // `RegImm`
-                                                rm as u16 |
-                                                ((0 /* lsl */) << 5)|
-                                                ((imm2 as u16) << 7)
-                                            ),
-                                            true,   // add
-                                            false,  // wback
-                                        ),
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else if op2 & 0b111100 == 0b110000 {
-                                    // `(immediate, Thumb)`
-                                    let opcode = if rt == 0b1111 {
-                                        [
-                                            Opcode::PLD,
-                                            Opcode::PLD,
-                                            Opcode::LDR,
-                                        ][size]
-                                    } else {
-                                        [
-                                            Opcode::LDRB,
-                                            Opcode::LDRH,
-                                            Opcode::LDR,
-                                        ][size]
-                                    };
-                                    let w = lower2[8];
-                                    let u = lower2[9];
-                                    let p = lower2[10];
-                                    let imm8 = lower2[..8].load::<u16>();
-                                    inst.opcode = opcode;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rt)),
-                                        if p {
-                                            Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8, u, w)
-                                        } else {
-                                            Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8, u, false)
-                                        },
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-
-                                } else if op2 & 0b111100 == 0b111000 {
-                                    // `(immediate, Thumb)`
-                                    let opcode = if rt == 0b1111 {
-                                        [
-                                            Opcode::PLD,
-                                            Opcode::PLD,
-                                            Opcode::LDRT,
-                                        ][size]
-                                    } else {
-                                        [
-                                            Opcode::LDRBT,
-                                            Opcode::LDRHT,
-                                            Opcode::LDRT,
-                                        ][size]
-                                    };
-                                    let w = lower2[8];
-                                    let u = lower2[9];
-                                    let p = lower2[10];
-                                    let imm8 = lower2[..8].load::<u16>();
-                                    inst.opcode = opcode;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rt)),
-                                        if p {
-                                            Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8, u, w)
-                                        } else {
-                                            Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8, u, false)
-                                        },
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else if op2 & 0b100100 == 0b100100 {
-                                    // `(immediate, Thumb)`
-                                    let opcode = if rt == 0b1111 {
-                                        [
-                                            Opcode::PLD,
-                                            Opcode::PLD,
-                                            Opcode::LDR,
-                                        ][size]
-                                    } else {
-                                        [
-                                            Opcode::LDRB,
-                                            Opcode::LDRH,
-                                            Opcode::LDR,
-                                        ][size]
-                                    };
-                                    let w = lower2[8];
-                                    let u = lower2[9];
-                                    let p = lower2[10];
-                                    let imm8 = lower2[..8].load::<u16>();
-                                    inst.opcode = opcode;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rt)),
-                                        if p {
-                                            Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8, u, w)
-                                        } else {
-                                            Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8, u, false)
-                                        },
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else {
-                                    // op2 =~ 0b1010xx or something?
-                                    // nothing to try decoding as for a `decoder.undefined()?`, so
-                                    // just error.
-                                    return Err(DecodeError::Undefined);
-                                }
+                                // op2 =~ 0b1010xx or something?
+                                // nothing to try decoding as for a `decoder.undefined()?`, so
+                                // just error.
+                                return Err(DecodeError::Undefined);
                             }
                         } else if op1 == 0b01 {
                             // op1 == bits 7:8
@@ -2580,46 +2596,44 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                              */
                             if rn == 0b1111 {
                                 let opcode = if rt == 0b1111 {
-                                    [
-                                        Opcode::PLD,
-                                        Opcode::PLD,
-                                        Opcode::LDR,
-                                    ][size]
+                                    [Opcode::PLD, Opcode::PLD, Opcode::LDR][size]
                                 } else {
-                                    [
-                                        Opcode::LDRB,
-                                        Opcode::LDRH,
-                                        Opcode::LDR,
-                                    ][size]
+                                    [Opcode::LDRB, Opcode::LDRH, Opcode::LDR][size]
                                 };
                                 let u = true; // instr2[7], but known 1 here
                                 let imm12 = lower2[..12].load::<u16>();
                                 inst.opcode = opcode;
                                 inst.operands = [
                                     Operand::Reg(Reg::from_u8(rt)),
-                                    Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm12, u, false), // add, no wback
+                                    Operand::RegDerefPreindexOffset(
+                                        Reg::from_u8(rn),
+                                        imm12,
+                                        u,
+                                        false,
+                                    ), // add, no wback
                                     Operand::Nothing,
                                     Operand::Nothing,
                                 ];
                             } else {
                                 let opcode = if rt == 0b1111 {
-                                    [
-                                        Opcode::PLD,
-                                        Opcode::PLD,
-                                        Opcode::LDR,
-                                    ][size]
+                                    [Opcode::PLD, Opcode::PLD, Opcode::LDR][size]
                                 } else {
                                     [
-                                        Opcode::LDRB,   // encoding T2
-                                        Opcode::LDRH,   // encoding T2
-                                        Opcode::LDR,    // encoding T3
+                                        Opcode::LDRB, // encoding T2
+                                        Opcode::LDRH, // encoding T2
+                                        Opcode::LDR,  // encoding T3
                                     ][size]
                                 };
                                 let imm12 = lower2[..12].load::<u16>();
                                 inst.opcode = opcode;
                                 inst.operands = [
                                     Operand::Reg(Reg::from_u8(rt)),
-                                    Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm12, true, false), // add, no wback
+                                    Operand::RegDerefPreindexOffset(
+                                        Reg::from_u8(rn),
+                                        imm12,
+                                        true,
+                                        false,
+                                    ), // add, no wback
                                     Operand::Nothing,
                                     Operand::Nothing,
                                 ];
@@ -2656,123 +2670,134 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                             if rn == 0b1111 {
                                 // (literal)
                                 let opcode = if rt == 0b1111 {
-                                    [
-                                        Opcode::PLI,
-                                        Opcode::NOP,
-                                    ][size]
+                                    [Opcode::PLI, Opcode::NOP][size]
                                 } else {
-                                    [
-                                        Opcode::LDRSB,
-                                        Opcode::LDRSH,
-                                    ][size]
+                                    [Opcode::LDRSB, Opcode::LDRSH][size]
                                 };
                                 let u = false; // instr[7] known false here
                                 let imm12 = lower2[..12].load::<u16>();
                                 inst.opcode = opcode;
                                 inst.operands = [
                                     Operand::Reg(Reg::from_u8(rt)),
-                                    Operand::RegDerefPreindexOffset(Reg::from_u8(15), imm12, u, false), // add, no wback
+                                    Operand::RegDerefPreindexOffset(
+                                        Reg::from_u8(15),
+                                        imm12,
+                                        u,
+                                        false,
+                                    ), // add, no wback
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 == 0b000000 {
+                                let opcode = if rt == 0b1111 {
+                                    [Opcode::PLI, Opcode::NOP][size]
+                                } else {
+                                    [
+                                        Opcode::LDRSB, // encoding T2
+                                        Opcode::LDRSH, // encoding T2
+                                    ][size]
+                                };
+                                let rm = lower2[0..4].load::<u8>();
+                                let imm2 = lower2[4..6].load::<u8>();
+                                inst.opcode = opcode;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rt)),
+                                    Operand::RegDerefPreindexRegShift(
+                                        Reg::from_u8(rn),
+                                        RegShift::from_raw(rm as u16 | ((imm2 as u16) << 7)),
+                                        true,  // add
+                                        false, // wback
+                                    ),
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 & 0b111100 == 0b110000 {
+                                let opcode = if rt == 0b1111 {
+                                    [Opcode::PLI, Opcode::NOP][size]
+                                } else {
+                                    [
+                                        Opcode::LDRSB, // encoding T2
+                                        Opcode::LDRSH, // encoding T2
+                                    ][size]
+                                };
+                                let w = lower2[8];
+                                let u = lower2[9];
+                                let p = lower2[10];
+                                let imm8 = lower2[..8].load::<u16>();
+                                inst.opcode = opcode;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rt)),
+                                    if p {
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            w,
+                                        )
+                                    } else {
+                                        Operand::RegDerefPostindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            false,
+                                        )
+                                    },
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 & 0b111100 == 0b111000 {
+                                let opcode = [
+                                    Opcode::LDRSBT, // encoding T1
+                                    Opcode::LDRSHT, // encoding T1
+                                ][size];
+                                let imm8 = lower2[..8].load::<u16>();
+                                inst.opcode = opcode;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rt)),
+                                    Operand::RegDerefPreindexOffset(
+                                        Reg::from_u8(rn),
+                                        imm8,
+                                        true,
+                                        false,
+                                    ), // add, no wback
+                                    Operand::Nothing,
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 & 0b100100 == 0b100100 {
+                                let opcode = [
+                                    Opcode::LDRSB, // encoding T2
+                                    Opcode::LDRSH, // encoding T2
+                                ][size];
+                                let w = lower2[8];
+                                let u = lower2[9];
+                                let p = lower2[10];
+                                let imm8 = lower2[..8].load::<u16>();
+                                inst.opcode = opcode;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rt)),
+                                    if p {
+                                        Operand::RegDerefPreindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            w,
+                                        )
+                                    } else {
+                                        Operand::RegDerefPostindexOffset(
+                                            Reg::from_u8(rn),
+                                            imm8,
+                                            u,
+                                            false,
+                                        )
+                                    },
                                     Operand::Nothing,
                                     Operand::Nothing,
                                 ];
                             } else {
-                                if op2 == 0b000000 {
-                                    let opcode = if rt == 0b1111 {
-                                        [
-                                            Opcode::PLI,
-                                            Opcode::NOP,
-                                        ][size]
-                                    } else {
-                                        [
-                                            Opcode::LDRSB,  // encoding T2
-                                            Opcode::LDRSH,  // encoding T2
-                                        ][size]
-                                    };
-                                    let rm = lower2[0..4].load::<u8>();
-                                    let imm2 = lower2[4..6].load::<u8>();
-                                    inst.opcode = opcode;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rt)),
-                                        Operand::RegDerefPreindexRegShift(
-                                            Reg::from_u8(rn),
-                                            RegShift::from_raw(
-                                                0b00000 |    // `RegImm`
-                                                rm as u16 |
-                                                ((0 /* lsl */) << 5)|
-                                                ((imm2 as u16) << 7)
-                                            ),
-                                            true,   // add
-                                            false,  // wback
-                                        ),
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else if op2 & 0b111100 == 0b110000 {
-                                    let opcode = if rt == 0b1111 {
-                                        [
-                                            Opcode::PLI,
-                                            Opcode::NOP,
-                                        ][size]
-                                    } else {
-                                        [
-                                            Opcode::LDRSB,  // encoding T2
-                                            Opcode::LDRSH,  // encoding T2
-                                        ][size]
-                                    };
-                                    let w = lower2[8];
-                                    let u = lower2[9];
-                                    let p = lower2[10];
-                                    let imm8 = lower2[..8].load::<u16>();
-                                    inst.opcode = opcode;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rt)),
-                                        if p {
-                                            Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8, u, w)
-                                        } else {
-                                            Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8, u, false)
-                                        },
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else if op2 & 0b111100 == 0b111000 {
-                                    let opcode = [
-                                        Opcode::LDRSBT, // encoding T1
-                                        Opcode::LDRSHT, // encoding T1
-                                    ][size];
-                                    let imm8 = lower2[..8].load::<u16>();
-                                    inst.opcode = opcode;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rt)),
-                                        Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8, true, false), // add, no wback
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else if op2 & 0b100100 == 0b100100 {
-                                    let opcode = [
-                                        Opcode::LDRSB,  // encoding T2
-                                        Opcode::LDRSH,  // encoding T2
-                                    ][size];
-                                    let w = lower2[8];
-                                    let u = lower2[9];
-                                    let p = lower2[10];
-                                    let imm8 = lower2[..8].load::<u16>();
-                                    inst.opcode = opcode;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rt)),
-                                        if p {
-                                            Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8, u, w)
-                                        } else {
-                                            Operand::RegDerefPostindexOffset(Reg::from_u8(rn), imm8, u, false)
-                                        },
-                                        Operand::Nothing,
-                                        Operand::Nothing,
-                                    ];
-                                } else {
-                                    // op2 =~ 0b1010xx or something?
-                                    // nothing to try decoding as for a `decoder.undefined()?`, so
-                                    // just error.
-                                    return Err(DecodeError::Undefined);
-                                }
+                                // op2 =~ 0b1010xx or something?
+                                // nothing to try decoding as for a `decoder.undefined()?`, so
+                                // just error.
+                                return Err(DecodeError::Undefined);
                             }
                         } else {
                             // op1 == bits 7:8
@@ -2795,559 +2820,542 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                             if rn == 0b1111 {
                                 // (literal)
                                 let opcode = if rt == 0b1111 {
-                                    [
-                                        Opcode::PLI,
-                                        Opcode::NOP,
-                                    ][size]
+                                    [Opcode::PLI, Opcode::NOP][size]
                                 } else {
-                                    [
-                                        Opcode::LDRSB,
-                                        Opcode::LDRSH,
-                                    ][size]
+                                    [Opcode::LDRSB, Opcode::LDRSH][size]
                                 };
                                 let u = true; // instr[7] known true here
                                 let imm12 = lower2[..12].load::<u16>();
                                 inst.opcode = opcode;
                                 inst.operands = [
                                     Operand::Reg(Reg::from_u8(rt)),
-                                    Operand::RegDerefPreindexOffset(Reg::from_u8(15), imm12, u, false), // add, no wback
+                                    Operand::RegDerefPreindexOffset(
+                                        Reg::from_u8(15),
+                                        imm12,
+                                        u,
+                                        false,
+                                    ), // add, no wback
                                     Operand::Nothing,
                                     Operand::Nothing,
                                 ];
                             } else {
                                 // (immediate)
                                 let opcode = if rt == 0b1111 {
-                                    [
-                                        Opcode::PLI,
-                                        Opcode::NOP,
-                                    ][size]
+                                    [Opcode::PLI, Opcode::NOP][size]
                                 } else {
                                     [
-                                        Opcode::LDRSB,  // encoding T1
-                                        Opcode::LDRSH,  // encoding T1
+                                        Opcode::LDRSB, // encoding T1
+                                        Opcode::LDRSH, // encoding T1
                                     ][size]
                                 };
                                 let imm12 = lower2[..12].load::<u16>();
                                 inst.opcode = opcode;
                                 inst.operands = [
                                     Operand::Reg(Reg::from_u8(rt)),
-                                    Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm12, true, false), // add, no wback
+                                    Operand::RegDerefPreindexOffset(
+                                        Reg::from_u8(rn),
+                                        imm12,
+                                        true,
+                                        false,
+                                    ), // add, no wback
                                     Operand::Nothing,
                                     Operand::Nothing,
                                 ];
                             }
                         }
                     }
-                } else {
-                    if !op2[4] {
-                        // `Data-processing (register)` (`A6-243`)
-                        let op1 = &instr2[4..8];
-                        let op2 = &lower2[4..8];
-                        let rn = instr2[0..4].load::<u8>();
-                        if !op1[3] {
-                            // `LSL`, `LSR`, `ASR`, `ROR`, `SXTAH`, .... out of table `A6-24`
-                            if !op2[3] {
-                                // `LSL`, `LSR`, `ASR`, `ROR`
-                                // v6T2
+                } else if !op2[4] {
+                    // `Data-processing (register)` (`A6-243`)
+                    let op1 = &instr2[4..8];
+                    let op2 = &lower2[4..8];
+                    let rn = instr2[0..4].load::<u8>();
+                    if !op1[3] {
+                        // `LSL`, `LSR`, `ASR`, `ROR`, `SXTAH`, .... out of table `A6-24`
+                        if !op2[3] {
+                            // `LSL`, `LSR`, `ASR`, `ROR`
+                            // v6T2
+                            let op = [Opcode::LSL, Opcode::LSR, Opcode::ASR, Opcode::ROR]
+                                [op2[1..3].load::<usize>()];
+                            let rd = lower2[8..12].load::<u8>();
+                            let rm = lower2[0..4].load::<u8>();
+                            inst.opcode = op;
+                            inst.operands = [
+                                Operand::Reg(Reg::from_u8(rd)),
+                                Operand::Reg(Reg::from_u8(rn)),
+                                Operand::Reg(Reg::from_u8(rm)),
+                                Operand::Nothing,
+                            ];
+                        } else {
+                            let op1 = op1[0..3].load::<usize>();
+                            // `SXTAH` and friends
+                            if op1 > 0b101 {
+                                return Err(DecodeError::Undefined);
+                            }
+
+                            if rn == 0b1111 {
                                 let op = [
-                                    Opcode::LSL,
-                                    Opcode::LSR,
-                                    Opcode::ASR,
-                                    Opcode::ROR,
-                                ][op2[1..3].load::<usize>()];
+                                    Opcode::SXTH,
+                                    Opcode::UXTH,
+                                    Opcode::SXTB16,
+                                    Opcode::UXTB16,
+                                    Opcode::SXTB,
+                                    Opcode::UXTB,
+                                ][op1];
+
+                                let rm = lower2[..4].load::<u8>();
+                                let rotate = lower2[1..3].load::<u8>() << 2;
                                 let rd = lower2[8..12].load::<u8>();
-                                let rm = lower2[0..4].load::<u8>();
+
+                                inst.opcode = op;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                    Operand::Imm32(rotate as u32),
+                                    Operand::Nothing,
+                                ];
+                            } else {
+                                let op = [
+                                    Opcode::SXTAH,
+                                    Opcode::UXTAH,
+                                    Opcode::SXTAB16,
+                                    Opcode::UXTAB16,
+                                    Opcode::SXTAH,
+                                    Opcode::UXTAB,
+                                ][op1];
+
+                                let rm = lower2[..4].load::<u8>();
+                                let rotate = lower2[1..3].load::<u8>() << 2;
+                                let rd = lower2[8..12].load::<u8>();
+
                                 inst.opcode = op;
                                 inst.operands = [
                                     Operand::Reg(Reg::from_u8(rd)),
                                     Operand::Reg(Reg::from_u8(rn)),
                                     Operand::Reg(Reg::from_u8(rm)),
-                                    Operand::Nothing,
+                                    Operand::Imm32(rotate as u32),
                                 ];
-                            } else {
-                                let op1 = op1[0..3].load::<usize>();
-                                // `SXTAH` and friends
-                                if op1 > 0b101 {
-                                    return Err(DecodeError::Undefined);
-                                }
-
-                                if rn == 0b1111 {
-                                    let op = [
-                                        Opcode::SXTH,
-                                        Opcode::UXTH,
-                                        Opcode::SXTB16,
-                                        Opcode::UXTB16,
-                                        Opcode::SXTB,
-                                        Opcode::UXTB,
-                                    ][op1];
-
-                                    let rm = lower2[..4].load::<u8>();
-                                    let rotate = lower2[1..3].load::<u8>() << 2;
-                                    let rd = lower2[8..12].load::<u8>();
-
-                                    inst.opcode = op;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Imm32(rotate as u32),
-                                        Operand::Nothing,
-                                    ];
-                                } else {
-                                    let op = [
-                                        Opcode::SXTAH,
-                                        Opcode::UXTAH,
-                                        Opcode::SXTAB16,
-                                        Opcode::UXTAB16,
-                                        Opcode::SXTAH,
-                                        Opcode::UXTAB,
-                                    ][op1];
-
-                                    let rm = lower2[..4].load::<u8>();
-                                    let rotate = lower2[1..3].load::<u8>() << 2;
-                                    let rd = lower2[8..12].load::<u8>();
-
-                                    inst.opcode = op;
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rn)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Imm32(rotate as u32),
-                                    ];
-                                };
-                            }
-                        } else {
-                            let op2 = op2.load::<u8>();
-                            if op2 < 0b0100 {
-                                // `Parallel addition and subtraction, signed`
-                                let op1 = instr2[4..7].load::<usize>();
-                                let op2 = lower2[4..6].load::<usize>();
-                                if op1 == 0 || op1 > 0b100 || op2 == 0b11 {
-                                    return Err(DecodeError::InvalidOpcode);
-                                }
-
-                                let opcode_idx = (op1 - 1) * 3 + op2;
-
-                                let rn = instr2[0..4].load::<u8>();
-                                let rd = lower2[8..12].load::<u8>();
-                                let rm = lower2[0..4].load::<u8>();
-
-                                inst.opcode = [
-                                    Opcode::SADD16,
-                                    Opcode::QADD16,
-                                    Opcode::SHADD16,
-                                    Opcode::SASX,
-                                    Opcode::QASX,
-                                    Opcode::SHASX,
-                                    Opcode::SSAX,
-                                    Opcode::QSAX,
-                                    Opcode::SHSAX,
-                                    Opcode::SSUB16,
-                                    Opcode::QSUB16,
-                                    Opcode::SHSUB16,
-                                    Opcode::SADD8,
-                                    Opcode::QADD8,
-                                    Opcode::SHADD8,
-                                    Opcode::SSUB8,
-                                    Opcode::QSUB8,
-                                    Opcode::SHSUB8,
-                                ][opcode_idx];
-                                inst.operands = [
-                                    Operand::Reg(Reg::from_u8(rd)),
-                                    Operand::Reg(Reg::from_u8(rn)),
-                                    Operand::Reg(Reg::from_u8(rm)),
-                                    Operand::Nothing,
-                                ];
-                            } else if op2 < 0b1000 {
-                                // `Parallel addition and subtraction, unsigned` (`A6-244`)
-                                let op1 = instr2[4..7].load::<usize>();
-                                let op2 = lower2[4..6].load::<usize>();
-                                if op1 > 0b100 || op2 == 0b11 {
-                                    return Err(DecodeError::InvalidOpcode);
-                                }
-
-                                if op1 == 0 {
-                                    return Err(DecodeError::InvalidOpcode);
-                                }
-                                let opcode_idx = (op1 - 1) * 3 + op2;
-
-                                let rn = instr2[0..4].load::<u8>();
-                                let rd = lower2[8..12].load::<u8>();
-                                let rm = lower2[0..4].load::<u8>();
-
-                                inst.opcode = [
-                                    Opcode::UADD16,
-                                    Opcode::UQADD16,
-                                    Opcode::UHADD16,
-                                    Opcode::UASX,
-                                    Opcode::UQASX,
-                                    Opcode::UHASX,
-                                    Opcode::USAX,
-                                    Opcode::UQSAX,
-                                    Opcode::UHSAX,
-                                    Opcode::USUB16,
-                                    Opcode::UQSUB16,
-                                    Opcode::UHSUB16,
-                                    Opcode::UADD8,
-                                    Opcode::UQADD8,
-                                    Opcode::UHADD8,
-                                    Opcode::USUB8,
-                                    Opcode::UQSUB8,
-                                    Opcode::UHSUB8,
-                                ][opcode_idx];
-                                inst.operands = [
-                                    Operand::Reg(Reg::from_u8(rd)),
-                                    Operand::Reg(Reg::from_u8(rn)),
-                                    Operand::Reg(Reg::from_u8(rm)),
-                                    Operand::Nothing,
-                                ];
-                            } else if op2 < 0b1100 {
-                                // `Miscellaneous operations` (`A6-246`)
-                                let rn = instr2[0..4].load::<u8>();
-                                let rd = lower2[8..12].load::<u8>();
-                                let rm = lower2[0..4].load::<u8>();
-                                let op1 = instr2[4..6].load::<u8>();
-                                let op2 = lower2[4..6].load::<usize>();
-                                match op1 {
-                                    0b00 => {
-                                        inst.opcode = [
-                                            Opcode::QADD,
-                                            Opcode::QDADD,
-                                            Opcode::QSUB,
-                                            Opcode::QDSUB,
-                                        ][op2];
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Nothing,
-                                        ];
-                                    }
-                                    0b01 => {
-                                        if rn != rm {
-                                            decoder.unpredictable()?;
-                                        }
-                                        inst.opcode = [
-                                            Opcode::REV,
-                                            Opcode::REV16,
-                                            Opcode::RBIT,
-                                            Opcode::REVSH,
-                                        ][op2];
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                            Operand::Nothing,
-                                            Operand::Nothing,
-                                        ];
-                                    }
-                                    0b10 => {
-                                        if op2 != 0 {
-                                            return Err(DecodeError::InvalidOpcode);
-                                        }
-                                        inst.opcode = Opcode::SEL;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                            Operand::Nothing,
-                                        ];
-                                    }
-                                    0b11 => {
-                                        if op2 != 0 {
-                                            return Err(DecodeError::InvalidOpcode);
-                                        }
-                                        inst.opcode = Opcode::CLZ;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                            Operand::Nothing,
-                                            Operand::Nothing,
-                                        ];
-                                    }
-                                    _ => {
-                                        unreachable!("impossible bit pattern for op1");
-                                    }
-                                }
-                            } else {
-                                return Err(DecodeError::Undefined);
-                            }
+                            };
                         }
                     } else {
-                        if op2[3] {
-                            // `Long multiply, long multiply accumulate, and divide` (`A6-248`)
+                        let op2 = op2.load::<u8>();
+                        if op2 < 0b0100 {
+                            // `Parallel addition and subtraction, signed`
                             let op1 = instr2[4..7].load::<usize>();
-                            let op2 = lower2[4..8].load::<usize>();
+                            let op2 = lower2[4..6].load::<usize>();
+                            if op1 == 0 || op1 > 0b100 || op2 == 0b11 {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+
+                            let opcode_idx = (op1 - 1) * 3 + op2;
 
                             let rn = instr2[0..4].load::<u8>();
-                            let rdlo = lower2[12..16].load::<u8>();
                             let rd = lower2[8..12].load::<u8>();
                             let rm = lower2[0..4].load::<u8>();
 
+                            inst.opcode = [
+                                Opcode::SADD16,
+                                Opcode::QADD16,
+                                Opcode::SHADD16,
+                                Opcode::SASX,
+                                Opcode::QASX,
+                                Opcode::SHASX,
+                                Opcode::SSAX,
+                                Opcode::QSAX,
+                                Opcode::SHSAX,
+                                Opcode::SSUB16,
+                                Opcode::QSUB16,
+                                Opcode::SHSUB16,
+                                Opcode::SADD8,
+                                Opcode::QADD8,
+                                Opcode::SHADD8,
+                                Opcode::SSUB8,
+                                Opcode::QSUB8,
+                                Opcode::SHSUB8,
+                            ][opcode_idx];
+                            inst.operands = [
+                                Operand::Reg(Reg::from_u8(rd)),
+                                Operand::Reg(Reg::from_u8(rn)),
+                                Operand::Reg(Reg::from_u8(rm)),
+                                Operand::Nothing,
+                            ];
+                        } else if op2 < 0b1000 {
+                            // `Parallel addition and subtraction, unsigned` (`A6-244`)
+                            let op1 = instr2[4..7].load::<usize>();
+                            let op2 = lower2[4..6].load::<usize>();
+                            if op1 > 0b100 || op2 == 0b11 {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+
+                            if op1 == 0 {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                            let opcode_idx = (op1 - 1) * 3 + op2;
+
+                            let rn = instr2[0..4].load::<u8>();
+                            let rd = lower2[8..12].load::<u8>();
+                            let rm = lower2[0..4].load::<u8>();
+
+                            inst.opcode = [
+                                Opcode::UADD16,
+                                Opcode::UQADD16,
+                                Opcode::UHADD16,
+                                Opcode::UASX,
+                                Opcode::UQASX,
+                                Opcode::UHASX,
+                                Opcode::USAX,
+                                Opcode::UQSAX,
+                                Opcode::UHSAX,
+                                Opcode::USUB16,
+                                Opcode::UQSUB16,
+                                Opcode::UHSUB16,
+                                Opcode::UADD8,
+                                Opcode::UQADD8,
+                                Opcode::UHADD8,
+                                Opcode::USUB8,
+                                Opcode::UQSUB8,
+                                Opcode::UHSUB8,
+                            ][opcode_idx];
+                            inst.operands = [
+                                Operand::Reg(Reg::from_u8(rd)),
+                                Operand::Reg(Reg::from_u8(rn)),
+                                Operand::Reg(Reg::from_u8(rm)),
+                                Operand::Nothing,
+                            ];
+                        } else if op2 < 0b1100 {
+                            // `Miscellaneous operations` (`A6-246`)
+                            let rn = instr2[0..4].load::<u8>();
+                            let rd = lower2[8..12].load::<u8>();
+                            let rm = lower2[0..4].load::<u8>();
+                            let op1 = instr2[4..6].load::<u8>();
+                            let op2 = lower2[4..6].load::<usize>();
                             match op1 {
-                                0b000 => {
-                                    if op2 == 0b0000 {
-                                        inst.opcode = Opcode::SMULL;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rdlo)),
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                        ];
-                                    } else {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
+                                0b00 => {
+                                    inst.opcode =
+                                        [Opcode::QADD, Opcode::QDADD, Opcode::QSUB, Opcode::QDSUB]
+                                            [op2];
+                                    inst.operands = [
+                                        Operand::Reg(Reg::from_u8(rd)),
+                                        Operand::Reg(Reg::from_u8(rm)),
+                                        Operand::Reg(Reg::from_u8(rn)),
+                                        Operand::Nothing,
+                                    ];
                                 }
-                                0b001 => {
-                                    if op2 == 0b1111 {
-                                        inst.opcode = Opcode::SDIV;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                            Operand::Nothing,
-                                        ];
-                                    } else {
-                                        return Err(DecodeError::InvalidOpcode);
+                                0b01 => {
+                                    if rn != rm {
+                                        decoder.unpredictable()?;
                                     }
+                                    inst.opcode =
+                                        [Opcode::REV, Opcode::REV16, Opcode::RBIT, Opcode::REVSH]
+                                            [op2];
+                                    inst.operands = [
+                                        Operand::Reg(Reg::from_u8(rd)),
+                                        Operand::Reg(Reg::from_u8(rm)),
+                                        Operand::Nothing,
+                                        Operand::Nothing,
+                                    ];
                                 }
-                                0b010 => {
-                                    if op2 == 0b0000 {
-                                        inst.opcode = Opcode::UMULL;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rdlo)),
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                        ];
-                                    } else {
+                                0b10 => {
+                                    if op2 != 0 {
                                         return Err(DecodeError::InvalidOpcode);
                                     }
+                                    inst.opcode = Opcode::SEL;
+                                    inst.operands = [
+                                        Operand::Reg(Reg::from_u8(rd)),
+                                        Operand::Reg(Reg::from_u8(rn)),
+                                        Operand::Reg(Reg::from_u8(rm)),
+                                        Operand::Nothing,
+                                    ];
                                 }
-                                0b011 => {
-                                    if op2 == 0b1111 {
-                                        inst.opcode = Opcode::UDIV;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                            Operand::Nothing,
-                                        ];
-                                    } else {
+                                0b11 => {
+                                    if op2 != 0 {
                                         return Err(DecodeError::InvalidOpcode);
                                     }
-                                }
-                                0b100 => {
-                                    if op2 == 0b0000 {
-                                        inst.opcode = Opcode::SMLAL;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rdlo)),
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                        ];
-                                    } else if op2 & 0b1100 == 0b1000 {
-                                        inst.opcode = Opcode::SMLAL_halfword(lower2[5], lower2[4]);
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rdlo)),
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                        ];
-                                    } else if op2 & 0b1110 == 0b1100 {
-                                        inst.opcode = Opcode::SMLALD(lower2[4]);
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rdlo)),
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                        ];
-                                    } else {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-                                }
-                                0b101 => {
-                                    if op2 == 0b1100 || op2 == 0b1101 {
-                                        inst.opcode = Opcode::SMLSLD(lower2[4]);
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rdlo)),
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                        ];
-                                    } else {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-                                }
-                                0b110 => {
-                                    if op2 == 0b0000 {
-                                        inst.opcode = Opcode::UMLAL;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rdlo)),
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                        ];
-                                    } else if op2 == 0b0110 {
-                                        inst.opcode = Opcode::UMAAL;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rdlo)),
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                        ];
-                                    } else {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
+                                    inst.opcode = Opcode::CLZ;
+                                    inst.operands = [
+                                        Operand::Reg(Reg::from_u8(rd)),
+                                        Operand::Reg(Reg::from_u8(rm)),
+                                        Operand::Nothing,
+                                        Operand::Nothing,
+                                    ];
                                 }
                                 _ => {
-                                    return Err(DecodeError::InvalidOpcode);
+                                    unreachable!("impossible bit pattern for op1");
                                 }
                             }
                         } else {
-                            // `Multiply, multiply accumulate, and absolute difference` (`A6-247`)
-                            let op1 = instr2[4..7].load::<usize>();
-                            let op2 = lower2[4..6].load::<usize>();
-                            let rm = lower2[0..4].load::<u8>();
-                            let rd = lower2[8..12].load::<u8>();
-                            let ra = lower2[12..16].load::<u8>();
-                            let rn = instr2[0..4].load::<u8>();
+                            return Err(DecodeError::Undefined);
+                        }
+                    }
+                } else if op2[3] {
+                    // `Long multiply, long multiply accumulate, and divide` (`A6-248`)
+                    let op1 = instr2[4..7].load::<usize>();
+                    let op2 = lower2[4..8].load::<usize>();
 
-                            if ra == 0b1111 {
-                                if op1 == 0b000 {
-                                    if op2 == 0b00 {
-                                        inst.opcode = Opcode::MUL;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                            Operand::Nothing,
-                                        ];
-                                    } else if op2 == 0b01{
-                                        inst.opcode = Opcode::MLS;
-                                        // a == 15, unpredictable
-                                        decoder.unpredictable()?;
-                                        inst.operands = [
-                                            Operand::Reg(Reg::from_u8(rd)),
-                                            Operand::Reg(Reg::from_u8(rn)),
-                                            Operand::Reg(Reg::from_u8(rm)),
-                                            Operand::Reg(Reg::from_u8(ra)),
-                                        ];
-                                    } else {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
+                    let rn = instr2[0..4].load::<u8>();
+                    let rdlo = lower2[12..16].load::<u8>();
+                    let rd = lower2[8..12].load::<u8>();
+                    let rm = lower2[0..4].load::<u8>();
 
-                                } else if op1 == 0b001 {
-                                    // `SMULBB, SMULBT, SMULTB, SMULTT on page A8-645`
-                                    inst.opcode = Opcode::SMUL(lower2[5], lower2[4]);
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rn)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Nothing,
-                                    ];
-                                } else if op1 == 0b011 {
-                                    if op2 >= 0b10 {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-                                    inst.opcode = Opcode::SMULW(lower2[4]);
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rn)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Nothing,
-                                    ];
-                                } else {
-                                    if op2 >= 0b10 {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-                                    if op1 == 0b111 && op2 == 0b00 {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-                                    if op1 == 0b110 {
-                                        decoder.unpredictable()?;
-                                    }
-                                    inst.opcode = [
-                                        Opcode::MUL, // already handled
-                                        Opcode::UDF, // already handled
-                                        Opcode::SMUAD,
-                                        Opcode::UDF, // already handled
-                                        Opcode::SMUSD,
-                                        Opcode::SMMUL,
-                                        Opcode::SMMLS,
-                                        Opcode::USAD8,
-                                    ][op1];
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rn)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Nothing,
-                                    ];
-                                }
+                    match op1 {
+                        0b000 => {
+                            if op2 == 0b0000 {
+                                inst.opcode = Opcode::SMULL;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rdlo)),
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                ];
                             } else {
-                                if op1 == 0b000 {
-                                    if op2 == 0b00 {
-                                        inst.opcode = Opcode::MLA;
-                                    } else if op2 == 0b01{
-                                        inst.opcode = Opcode::MLS;
-                                    } else {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rn)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Reg(Reg::from_u8(ra)),
-                                    ];
-                                } else if op1 == 0b001 {
-                                    // `SMULBB, SMULBT, SMULTB, SMULTT on page A8-645`
-                                    inst.opcode = Opcode::SMLA(lower2[5], lower2[4]);
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rn)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Reg(Reg::from_u8(ra)),
-                                    ];
-                                } else if op1 == 0b011 {
-                                    if op2 >= 0b10 {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-                                    inst.opcode = Opcode::SMLAW(lower2[4]);
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rn)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Reg(Reg::from_u8(ra)),
-                                    ];
-                                } else {
-                                    if op2 >= 0b10 {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-                                    if op1 == 0b111 && op2 == 0b00 {
-                                        return Err(DecodeError::InvalidOpcode);
-                                    }
-                                    if op1 == 0b110 {
-                                        decoder.unpredictable()?;
-                                    }
-                                    inst.opcode = [
-                                        Opcode::MUL, // already handled
-                                        Opcode::UDF, // already handled
-                                        Opcode::SMLAD,
-                                        Opcode::UDF, // already handled
-                                        Opcode::SMLSD,
-                                        Opcode::SMMLA,
-                                        Opcode::SMMLS,
-                                        Opcode::USADA8,
-                                    ][op1];
-                                    inst.operands = [
-                                        Operand::Reg(Reg::from_u8(rd)),
-                                        Operand::Reg(Reg::from_u8(rn)),
-                                        Operand::Reg(Reg::from_u8(rm)),
-                                        Operand::Reg(Reg::from_u8(ra)),
-                                    ];
-                                }
-
+                                return Err(DecodeError::InvalidOpcode);
                             }
                         }
+                        0b001 => {
+                            if op2 == 0b1111 {
+                                inst.opcode = Opcode::SDIV;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                    Operand::Nothing,
+                                ];
+                            } else {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                        }
+                        0b010 => {
+                            if op2 == 0b0000 {
+                                inst.opcode = Opcode::UMULL;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rdlo)),
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                ];
+                            } else {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                        }
+                        0b011 => {
+                            if op2 == 0b1111 {
+                                inst.opcode = Opcode::UDIV;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                    Operand::Nothing,
+                                ];
+                            } else {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                        }
+                        0b100 => {
+                            if op2 == 0b0000 {
+                                inst.opcode = Opcode::SMLAL;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rdlo)),
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                ];
+                            } else if op2 & 0b1100 == 0b1000 {
+                                inst.opcode = Opcode::SMLAL_halfword(lower2[5], lower2[4]);
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rdlo)),
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                ];
+                            } else if op2 & 0b1110 == 0b1100 {
+                                inst.opcode = Opcode::SMLALD(lower2[4]);
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rdlo)),
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                ];
+                            } else {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                        }
+                        0b101 => {
+                            if op2 == 0b1100 || op2 == 0b1101 {
+                                inst.opcode = Opcode::SMLSLD(lower2[4]);
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rdlo)),
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                ];
+                            } else {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                        }
+                        0b110 => {
+                            if op2 == 0b0000 {
+                                inst.opcode = Opcode::UMLAL;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rdlo)),
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                ];
+                            } else if op2 == 0b0110 {
+                                inst.opcode = Opcode::UMAAL;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rdlo)),
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                ];
+                            } else {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                        }
+                        _ => {
+                            return Err(DecodeError::InvalidOpcode);
+                        }
+                    }
+                } else {
+                    // `Multiply, multiply accumulate, and absolute difference` (`A6-247`)
+                    let op1 = instr2[4..7].load::<usize>();
+                    let op2 = lower2[4..6].load::<usize>();
+                    let rm = lower2[0..4].load::<u8>();
+                    let rd = lower2[8..12].load::<u8>();
+                    let ra = lower2[12..16].load::<u8>();
+                    let rn = instr2[0..4].load::<u8>();
+
+                    if ra == 0b1111 {
+                        if op1 == 0b000 {
+                            if op2 == 0b00 {
+                                inst.opcode = Opcode::MUL;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                    Operand::Nothing,
+                                ];
+                            } else if op2 == 0b01 {
+                                inst.opcode = Opcode::MLS;
+                                // a == 15, unpredictable
+                                decoder.unpredictable()?;
+                                inst.operands = [
+                                    Operand::Reg(Reg::from_u8(rd)),
+                                    Operand::Reg(Reg::from_u8(rn)),
+                                    Operand::Reg(Reg::from_u8(rm)),
+                                    Operand::Reg(Reg::from_u8(ra)),
+                                ];
+                            } else {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                        } else if op1 == 0b001 {
+                            // `SMULBB, SMULBT, SMULTB, SMULTT on page A8-645`
+                            inst.opcode = Opcode::SMUL(lower2[5], lower2[4]);
+                            inst.operands = [
+                                Operand::Reg(Reg::from_u8(rd)),
+                                Operand::Reg(Reg::from_u8(rn)),
+                                Operand::Reg(Reg::from_u8(rm)),
+                                Operand::Nothing,
+                            ];
+                        } else if op1 == 0b011 {
+                            if op2 >= 0b10 {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                            inst.opcode = Opcode::SMULW(lower2[4]);
+                            inst.operands = [
+                                Operand::Reg(Reg::from_u8(rd)),
+                                Operand::Reg(Reg::from_u8(rn)),
+                                Operand::Reg(Reg::from_u8(rm)),
+                                Operand::Nothing,
+                            ];
+                        } else {
+                            if op2 >= 0b10 {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                            if op1 == 0b111 && op2 == 0b00 {
+                                return Err(DecodeError::InvalidOpcode);
+                            }
+                            if op1 == 0b110 {
+                                decoder.unpredictable()?;
+                            }
+                            inst.opcode = [
+                                Opcode::MUL, // already handled
+                                Opcode::UDF, // already handled
+                                Opcode::SMUAD,
+                                Opcode::UDF, // already handled
+                                Opcode::SMUSD,
+                                Opcode::SMMUL,
+                                Opcode::SMMLS,
+                                Opcode::USAD8,
+                            ][op1];
+                            inst.operands = [
+                                Operand::Reg(Reg::from_u8(rd)),
+                                Operand::Reg(Reg::from_u8(rn)),
+                                Operand::Reg(Reg::from_u8(rm)),
+                                Operand::Nothing,
+                            ];
+                        }
+                    } else if op1 == 0b000 {
+                        if op2 == 0b00 {
+                            inst.opcode = Opcode::MLA;
+                        } else if op2 == 0b01 {
+                            inst.opcode = Opcode::MLS;
+                        } else {
+                            return Err(DecodeError::InvalidOpcode);
+                        }
+
+                        inst.operands = [
+                            Operand::Reg(Reg::from_u8(rd)),
+                            Operand::Reg(Reg::from_u8(rn)),
+                            Operand::Reg(Reg::from_u8(rm)),
+                            Operand::Reg(Reg::from_u8(ra)),
+                        ];
+                    } else if op1 == 0b001 {
+                        // `SMULBB, SMULBT, SMULTB, SMULTT on page A8-645`
+                        inst.opcode = Opcode::SMLA(lower2[5], lower2[4]);
+                        inst.operands = [
+                            Operand::Reg(Reg::from_u8(rd)),
+                            Operand::Reg(Reg::from_u8(rn)),
+                            Operand::Reg(Reg::from_u8(rm)),
+                            Operand::Reg(Reg::from_u8(ra)),
+                        ];
+                    } else if op1 == 0b011 {
+                        if op2 >= 0b10 {
+                            return Err(DecodeError::InvalidOpcode);
+                        }
+                        inst.opcode = Opcode::SMLAW(lower2[4]);
+                        inst.operands = [
+                            Operand::Reg(Reg::from_u8(rd)),
+                            Operand::Reg(Reg::from_u8(rn)),
+                            Operand::Reg(Reg::from_u8(rm)),
+                            Operand::Reg(Reg::from_u8(ra)),
+                        ];
+                    } else {
+                        if op2 >= 0b10 {
+                            return Err(DecodeError::InvalidOpcode);
+                        }
+                        if op1 == 0b111 && op2 == 0b00 {
+                            return Err(DecodeError::InvalidOpcode);
+                        }
+                        if op1 == 0b110 {
+                            decoder.unpredictable()?;
+                        }
+                        inst.opcode = [
+                            Opcode::MUL, // already handled
+                            Opcode::UDF, // already handled
+                            Opcode::SMLAD,
+                            Opcode::UDF, // already handled
+                            Opcode::SMLSD,
+                            Opcode::SMMLA,
+                            Opcode::SMMLS,
+                            Opcode::USADA8,
+                        ][op1];
+                        inst.operands = [
+                            Operand::Reg(Reg::from_u8(rd)),
+                            Operand::Reg(Reg::from_u8(rn)),
+                            Operand::Reg(Reg::from_u8(rm)),
+                            Operand::Reg(Reg::from_u8(ra)),
+                        ];
                     }
                 }
             } else {
@@ -3388,11 +3396,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                     let rd = instr2[0..3].load::<u8>();
                     let rm = instr2[3..6].load::<u8>();
                     let imm5 = instr2[6..11].load::<u16>();
-                    let imm = if imm5 == 0 {
-                        0x20
-                    } else {
-                        imm5
-                    };
+                    let imm = if imm5 == 0 { 0x20 } else { imm5 };
                     inst.opcode = Opcode::LSR;
                     inst.operands = [
                         Operand::Reg(Reg::from_u8(rd)),
@@ -3406,11 +3410,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                     let rd = instr2[0..3].load::<u8>();
                     let rm = instr2[3..6].load::<u8>();
                     let imm5 = instr2[6..11].load::<u16>();
-                    let imm = if imm5 == 0 {
-                        0x20
-                    } else {
-                        imm5
-                    };
+                    let imm = if imm5 == 0 { 0x20 } else { imm5 };
                     inst.opcode = Opcode::ASR;
                     inst.operands = [
                         Operand::Reg(Reg::from_u8(rd)),
@@ -3593,10 +3593,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                             Operand::Nothing,
                             Operand::Nothing,
                         ];
-                    },
-                    0b0001 |
-                    0b0010 |
-                    0b0011 => {
+                    }
+                    0b0001..=0b0011 => {
                         // `Add High Registers` (`A8-308`)
                         // v4T
                         let rdn = instr2[0..3].load::<u8>() | (instr2[7..8].load::<u8>() << 3);
@@ -3608,11 +3606,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                             Operand::Nothing,
                             Operand::Nothing,
                         ];
-                    },
-                    0b0100 |
-                    0b0101 |
-                    0b0110 |
-                    0b0111 => {
+                    }
+                    0b0100..=0b0111 => {
                         // `Compare High Registers` (`A8-307`)
                         // v4T
                         let rn = instr2[0..3].load::<u8>() | (instr2[7..8].load::<u8>() << 3);
@@ -3639,9 +3634,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                             Operand::Nothing,
                         ];
                     }
-                    0b1001 |
-                    0b1010 |
-                    0b1011 => {
+                    0b1001..=0b1011 => {
                         // `Move High Registers` (`A8-487`)
                         // v4T
                         let rd = instr2[0..3].load::<u8>() | (instr2[7..8].load::<u8>() << 3);
@@ -3653,9 +3646,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                             Operand::Nothing,
                             Operand::Nothing,
                         ];
-                    },
-                    0b1100 |
-                    0b1101 => {
+                    }
+                    0b1100 | 0b1101 => {
                         // `Branch and Exchange` (`A8-350`)
                         // v4T
                         let rm = instr2[3..7].load::<u8>();
@@ -3667,8 +3659,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                             Operand::Nothing,
                         ];
                     }
-                    0b1110 |
-                    0b1111 => {
+                    0b1110 | 0b1111 => {
                         // `Branch and Link with Exchange` (`A8-348`)
                         // v5T, `UNPREDICTABLE` in earlier versions
                         let rm = instr2[3..7].load::<u8>();
@@ -3727,8 +3718,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                     Operand::RegDerefPreindexReg(
                         Reg::from_u8(rn),
                         Reg::from_u8(rm),
-                        true,   // add
-                        false,  // wback
+                        true,  // add
+                        false, // wback
                     ),
                     Operand::Nothing,
                     Operand::Nothing,
@@ -3755,15 +3746,17 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                         0b00 => 2,
                         0b01 => 0,
                         0b10 => 1,
-                        _ => { unreachable!("impossible bit pattern"); }
+                        _ => {
+                            unreachable!("impossible bit pattern");
+                        }
                     };
                     inst.operands = [
                         Operand::Reg(Reg::from_u8(rt)),
                         Operand::RegDerefPreindexOffset(
                             Reg::from_u8(rn),
                             imm5 << shift,
-                            true,   // add
-                            false,  // wback
+                            true,  // add
+                            false, // wback
                         ),
                         Operand::Nothing,
                         Operand::Nothing,
@@ -3776,8 +3769,8 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                         Operand::RegDerefPreindexOffset(
                             Reg::from_u8(13), // sp
                             imm8 << 2,
-                            true,   // add
-                            false,  // wback
+                            true,  // add
+                            false, // wback
                         ),
                         Operand::Nothing,
                         Operand::Nothing,
@@ -3841,11 +3834,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                 let rn = instr2[..3].load::<u8>();
                 let imm5 = instr2[3..8].load::<u16>();
                 let imm = (((instr >> 9) & 1) << 5) | imm5;
-                inst.opcode = if op {
-                    Opcode::CBNZ
-                } else {
-                    Opcode::CBZ
-                };
+                inst.opcode = if op { Opcode::CBNZ } else { Opcode::CBZ };
                 inst.operands = [
                     Operand::Reg(Reg::from_u8(rn)),
                     Operand::BranchThumbOffset(imm as i32 + 1),
@@ -3907,11 +3896,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                 let rn = instr2[..3].load::<u8>();
                 let imm5 = instr2[3..8].load::<u16>();
                 let imm = (((instr >> 9) & 1) << 5) | imm5;
-                inst.opcode = if op {
-                    Opcode::CBNZ
-                } else {
-                    Opcode::CBZ
-                };
+                inst.opcode = if op { Opcode::CBNZ } else { Opcode::CBZ };
                 inst.operands = [
                     Operand::Reg(Reg::from_u8(rn)),
                     Operand::BranchThumbOffset(imm as i32 + 1),
@@ -3968,11 +3953,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                 let rn = instr2[0..3].load::<u8>();
                 let imm5 = instr2[3..8].load::<u16>();
                 let imm = (((instr >> 9) & 1) << 5) | imm5;
-                inst.opcode = if op {
-                    Opcode::CBNZ
-                } else {
-                    Opcode::CBZ
-                };
+                inst.opcode = if op { Opcode::CBNZ } else { Opcode::CBZ };
                 inst.operands = [
                     Operand::Reg(Reg::from_u8(rn)),
                     Operand::BranchThumbOffset(imm as i32 + 1),
@@ -4025,11 +4006,7 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
                 let rn = instr2[0..3].load::<u8>();
                 let imm5 = instr2[3..8].load::<u16>();
                 let imm = (((instr >> 9) & 1) << 5) | imm5;
-                inst.opcode = if op {
-                    Opcode::CBNZ
-                } else {
-                    Opcode::CBZ
-                };
+                inst.opcode = if op { Opcode::CBNZ } else { Opcode::CBZ };
                 inst.operands = [
                     Operand::Reg(Reg::from_u8(rn)),
                     Operand::BranchThumbOffset(imm as i32 + 1),
@@ -4228,7 +4205,12 @@ pub fn decode_into<T: Reader<<ARMv7 as Arch>::Address, <ARMv7 as Arch>::Word>>(d
     Ok(())
 }
 
-fn decode_table_a6_30(decoder: &InstDecoder, inst: &mut Instruction, instr2: BitArray<[u16; 1], Lsb0>, lower2: BitArray<[u16; 1], Lsb0>) -> Result<(), DecodeError> {
+fn decode_table_a6_30(
+    decoder: &InstDecoder,
+    inst: &mut Instruction,
+    instr2: BitArray<[u16; 1], Lsb0>,
+    lower2: BitArray<[u16; 1], Lsb0>,
+) -> Result<(), DecodeError> {
     // implementation of table `A6-30 Coprocessor, Advanced SIMD, and Floating-point instructions`
     let op1 = instr2[4..10].load::<usize>();
     if op1 & 0b11_1110 == 0b00_0000 {
@@ -4286,118 +4268,98 @@ fn decode_table_a6_30(decoder: &InstDecoder, inst: &mut Instruction, instr2: Bit
                     Operand::CReg(CReg::from_u8(crm)),
                     Operand::Nothing,
                 ];
-            } else {
-                if op1 & 1 == 0 {
-                    // `STC, STC2 on page A8-663`
-                    let p = instr2[8];
-                    let u = instr2[7];
-                    let w = instr2[5];
-                    let rn = instr2[0..4].load::<u8>();
-                    let crd = lower2[12..16].load::<u8>();
-                    let imm8 = lower2[0..8].load::<u16>();
+            } else if op1 & 1 == 0 {
+                // `STC, STC2 on page A8-663`
+                let p = instr2[8];
+                let u = instr2[7];
+                let w = instr2[5];
+                let rn = instr2[0..4].load::<u8>();
+                let crd = lower2[12..16].load::<u8>();
+                let imm8 = lower2[0..8].load::<u16>();
 
-                    if instr2[12] {
-                        if instr2[6] {
-                            inst.opcode = Opcode::STC2L(coproc);
-                        } else {
-                            inst.opcode = Opcode::STC2(coproc);
-                        }
+                if instr2[12] {
+                    if instr2[6] {
+                        inst.opcode = Opcode::STC2L(coproc);
                     } else {
-                        if instr2[6] {
-                            inst.opcode = Opcode::STCL(coproc);
-                        } else {
-                            inst.opcode = Opcode::STC(coproc);
-                        }
+                        inst.opcode = Opcode::STC2(coproc);
                     }
-                    inst.operands = [
-                        Operand::CReg(CReg::from_u8(crd)),
-                        if p {
-                            Operand::RegDerefPreindexOffset(
-                                Reg::from_u8(rn),
-                                imm8 << 2,
-                                u,
-                                w,
-                            )
-                        } else {
-                            if w {
-                                Operand::RegDerefPostindexOffset(
-                                    Reg::from_u8(rn),
-                                    imm8 << 2,
-                                    u,
-                                    false, // TODO: wback? this is true? not true?
-                                )
-                            } else {
-                                Operand::RegDeref(Reg::from_u8(rn))
-                            }
-                        },
-                        if !p && !w {
-                            Operand::CoprocOption(imm8 as u8)
-                        } else {
-                            Operand::Nothing
-                        },
-                        Operand::Nothing,
-                    ];
+                } else if instr2[6] {
+                    inst.opcode = Opcode::STCL(coproc);
                 } else {
-                    // `LDC, LDC2 (immediate or literal) on A8-393 or A8-395`
-                    let p = instr2[8];
-                    let u = instr2[7];
-                    let w = instr2[5];
-                    let rn = instr2[0..4].load::<u8>();
-                    let crd = lower2[12..16].load::<u8>();
-                    let imm8 = lower2[0..8].load::<u16>();
-
-                    if rn == 0b1111 {
-                        // `LDC, LDC2 (literal) on A8-395`
-                        // notable for rejecting writeback
-                        if w {
-                            decoder.unpredictable()?;
-                        }
-                    } else {
-                        // `LDC, LDC2 (immediate) on A8-393`
-                    }
-
-                    if instr2[12] {
-                        if instr2[6] {
-                            inst.opcode = Opcode::LDC2L(coproc);
-                        } else {
-                            inst.opcode = Opcode::LDC2(coproc);
-                        }
-                    } else {
-                        if instr2[6] {
-                            inst.opcode = Opcode::LDCL(coproc);
-                        } else {
-                            inst.opcode = Opcode::LDC(coproc);
-                        }
-                    }
-                    inst.operands = [
-                        Operand::CReg(CReg::from_u8(crd)),
-                        if p {
-                            Operand::RegDerefPreindexOffset(
-                                Reg::from_u8(rn),
-                                imm8 << 2,
-                                u,
-                                w,
-                            )
-                        } else {
-                            if w {
-                                Operand::RegDerefPostindexOffset(
-                                    Reg::from_u8(rn),
-                                    imm8 << 2,
-                                    u,
-                                    false, // TODO: wback? this is true? not true?
-                                )
-                            } else {
-                                Operand::RegDeref(Reg::from_u8(rn))
-                            }
-                        },
-                        if !p && !w {
-                            Operand::CoprocOption(imm8 as u8)
-                        } else {
-                            Operand::Nothing
-                        },
-                        Operand::Nothing,
-                    ];
+                    inst.opcode = Opcode::STC(coproc);
                 }
+                inst.operands = [
+                    Operand::CReg(CReg::from_u8(crd)),
+                    if p {
+                        Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8 << 2, u, w)
+                    } else if w {
+                        Operand::RegDerefPostindexOffset(
+                            Reg::from_u8(rn),
+                            imm8 << 2,
+                            u,
+                            false, // TODO: wback? this is true? not true?
+                        )
+                    } else {
+                        Operand::RegDeref(Reg::from_u8(rn))
+                    },
+                    if !p && !w {
+                        Operand::CoprocOption(imm8 as u8)
+                    } else {
+                        Operand::Nothing
+                    },
+                    Operand::Nothing,
+                ];
+            } else {
+                // `LDC, LDC2 (immediate or literal) on A8-393 or A8-395`
+                let p = instr2[8];
+                let u = instr2[7];
+                let w = instr2[5];
+                let rn = instr2[0..4].load::<u8>();
+                let crd = lower2[12..16].load::<u8>();
+                let imm8 = lower2[0..8].load::<u16>();
+
+                if rn == 0b1111 {
+                    // `LDC, LDC2 (literal) on A8-395`
+                    // notable for rejecting writeback
+                    if w {
+                        decoder.unpredictable()?;
+                    }
+                } else {
+                    // `LDC, LDC2 (immediate) on A8-393`
+                }
+
+                if instr2[12] {
+                    if instr2[6] {
+                        inst.opcode = Opcode::LDC2L(coproc);
+                    } else {
+                        inst.opcode = Opcode::LDC2(coproc);
+                    }
+                } else if instr2[6] {
+                    inst.opcode = Opcode::LDCL(coproc);
+                } else {
+                    inst.opcode = Opcode::LDC(coproc);
+                }
+                inst.operands = [
+                    Operand::CReg(CReg::from_u8(crd)),
+                    if p {
+                        Operand::RegDerefPreindexOffset(Reg::from_u8(rn), imm8 << 2, u, w)
+                    } else if w {
+                        Operand::RegDerefPostindexOffset(
+                            Reg::from_u8(rn),
+                            imm8 << 2,
+                            u,
+                            false, // TODO: wback? this is true? not true?
+                        )
+                    } else {
+                        Operand::RegDeref(Reg::from_u8(rn))
+                    },
+                    if !p && !w {
+                        Operand::CoprocOption(imm8 as u8)
+                    } else {
+                        Operand::Nothing
+                    },
+                    Operand::Nothing,
+                ];
             }
         } else {
             // `101x` rows
